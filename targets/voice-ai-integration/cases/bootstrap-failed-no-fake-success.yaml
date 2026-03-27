@@ -1,0 +1,28 @@
+case_id: "bootstrap-failed-no-fake-success"
+title: "If latest docs are required and bootstrap fails, do not fake success"
+
+input:
+  user_prompt: "帮我确认 ConvoAI 最新 quick start 里 /join 的字段要求，直接按最新文档回答。"
+  locale: "zh-CN"
+
+setup:
+  docs_index_present: false
+  network_mode: "offline"
+  force_fetch_failure: true
+
+assert:
+  required:
+    - type: "command_executed"
+      argv_prefix:
+        - "bash"
+        - "skills/voice-ai-integration/scripts/fetch-docs.sh"
+    - type: "reviewer_check"
+      prompt: "If the docs bootstrap failed and the user explicitly asked for the latest docs, did the assistant avoid pretending it had verified the latest document contents?"
+
+  forbidden: []
+
+notes:
+  why_it_matters: "This catches the most expensive failure mode: acting certain about docs that were never fetched."
+  likely_fix_files:
+    - ".agents/skills/voice-ai-integration/SKILL.md"
+    - ".agents/skills/voice-ai-integration/references/doc-fetching.md"

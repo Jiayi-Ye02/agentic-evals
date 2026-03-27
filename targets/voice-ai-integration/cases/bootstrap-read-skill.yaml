@@ -1,0 +1,25 @@
+case_id: "bootstrap-read-skill"
+title: "Read the entry skill before any routing or module lookup"
+
+input:
+  user_prompt: "我想做一个 Web 端 AI 语音助手，后端 Python。"
+  locale: "zh-CN"
+
+setup:
+  docs_index_present: true
+  network_mode: "restricted"
+
+assert:
+  required:
+    - type: "file_read"
+      path: ".agents/skills/voice-ai-integration/SKILL.md"
+      before_any_of:
+        - ".agents/skills/voice-ai-integration/intake/README.md"
+        - ".agents/skills/voice-ai-integration/references/conversational-ai/README.md"
+
+  forbidden: []
+
+notes:
+  why_it_matters: "The target skill has a mandatory top-level workflow. Missing the entry skill usually means the rest of the run is untrustworthy."
+  likely_fix_files:
+    - ".agents/skills/voice-ai-integration/SKILL.md"

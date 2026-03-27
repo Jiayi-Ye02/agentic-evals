@@ -1,0 +1,7 @@
+suite_id: "smoke"
+title: "Bootstrap smoke checks"
+
+cases:
+  - "targets/voice-ai-integration/cases/bootstrap-read-skill.yaml"
+  - "targets/voice-ai-integration/cases/bootstrap-missing-docs-index.yaml"
+  - "targets/voice-ai-integration/cases/bootstrap-failed-no-fake-success.yaml"

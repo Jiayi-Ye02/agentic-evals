@@ -1,0 +1,30 @@
+case_id: "convoai-sample-first"
+title: "ConvoAI should inspect sample/sdk guidance before REST fallback"
+
+input:
+  user_prompt: "我想做一个 Web 端 AI 语音助手，后端 Python。"
+  locale: "zh-CN"
+
+setup:
+  docs_index_present: true
+  network_mode: "restricted"
+
+assert:
+  required:
+    - type: "file_read"
+      path: ".agents/skills/voice-ai-integration/references/conversational-ai/README.md"
+    - type: "file_read"
+      path: ".agents/skills/voice-ai-integration/references/conversational-ai/sample-repos.md"
+    - type: "source_order"
+      first: ".agents/skills/voice-ai-integration/references/conversational-ai/sample-repos.md"
+      before: ".agents/skills/voice-ai-integration/references/conversational-ai/convoai-restapi.md"
+    - type: "reviewer_check"
+      prompt: "Did the assistant clearly follow the sample-first and SDK-first path instead of defaulting to a direct REST design?"
+
+  forbidden: []
+
+notes:
+  why_it_matters: "This is the core architectural rule for ConvoAI. If it fails, implementation advice will usually drift from the supported path."
+  likely_fix_files:
+    - ".agents/skills/voice-ai-integration/references/conversational-ai/README.md"
+    - ".agents/skills/voice-ai-integration/SKILL.md"

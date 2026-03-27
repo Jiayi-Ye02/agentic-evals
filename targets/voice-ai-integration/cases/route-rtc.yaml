@@ -1,0 +1,28 @@
+case_id: "route-rtc"
+title: "A human video-call request should route to RTC rather than ConvoAI"
+
+input:
+  user_prompt: "我想做一个 Web 端多人视频通话，不需要 AI agent。"
+  locale: "zh-CN"
+
+setup:
+  docs_index_present: true
+  network_mode: "restricted"
+
+assert:
+  required:
+    - type: "file_read"
+      path: ".agents/skills/voice-ai-integration/intake/README.md"
+    - type: "file_read"
+      path: ".agents/skills/voice-ai-integration/references/rtc/README.md"
+    - type: "route"
+      value: "rtc-primary"
+    - type: "reviewer_check"
+      prompt: "Did the assistant avoid switching into the ConvoAI-specific consolidated intake for this clearly non-AI RTC request?"
+
+  forbidden: []
+
+notes:
+  why_it_matters: "This catches false-positive ConvoAI routing on ordinary RTC requests."
+  likely_fix_files:
+    - ".agents/skills/voice-ai-integration/intake/README.md"

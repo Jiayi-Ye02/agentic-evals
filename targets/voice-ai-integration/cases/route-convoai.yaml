@@ -1,0 +1,29 @@
+case_id: "route-convoai"
+title: "A real-time AI voice bot request should route to ConvoAI-first handling"
+
+input:
+  user_prompt: "我想做一个语音客服机器人，需要实时对话，前端先做 Web。"
+  locale: "zh-CN"
+
+setup:
+  docs_index_present: true
+  network_mode: "restricted"
+
+assert:
+  required:
+    - type: "file_read"
+      path: ".agents/skills/voice-ai-integration/intake/README.md"
+    - type: "file_read"
+      path: ".agents/skills/voice-ai-integration/intake/convoai.md"
+    - type: "file_read"
+      path: ".agents/skills/voice-ai-integration/references/conversational-ai/README.md"
+    - type: "route"
+      value: "convoai-primary"
+
+  forbidden: []
+
+notes:
+  why_it_matters: "ConvoAI has a separate intake and sample-first workflow. Wrong routing causes the rest of the implementation path to drift."
+  likely_fix_files:
+    - ".agents/skills/voice-ai-integration/intake/README.md"
+    - ".agents/skills/voice-ai-integration/intake/convoai.md"

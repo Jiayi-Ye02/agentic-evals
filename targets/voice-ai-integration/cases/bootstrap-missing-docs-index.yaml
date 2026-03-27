@@ -1,0 +1,29 @@
+case_id: "bootstrap-missing-docs-index"
+title: "When docs.txt is missing, attempt Step 0 before routing"
+
+input:
+  user_prompt: "我想做一个 Web 端 AI 语音助手，后端 Python。"
+  locale: "zh-CN"
+
+setup:
+  docs_index_present: false
+  network_mode: "restricted"
+
+assert:
+  required:
+    - type: "file_read"
+      path: ".agents/skills/voice-ai-integration/SKILL.md"
+    - type: "command_executed"
+      argv_prefix:
+        - "bash"
+        - "skills/voice-ai-integration/scripts/fetch-docs.sh"
+    - type: "source_order"
+      first: "bash skills/voice-ai-integration/scripts/fetch-docs.sh"
+      before: ".agents/skills/voice-ai-integration/intake/README.md"
+
+  forbidden: []
+
+notes:
+  why_it_matters: "Step 0 is mandatory in the target skill. Skipping it weakens all later doc-fetch behavior."
+  likely_fix_files:
+    - ".agents/skills/voice-ai-integration/SKILL.md"
