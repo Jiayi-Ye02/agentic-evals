@@ -4,3 +4,4 @@ title: "Reference and source ordering"
 cases:
   - "targets/voice-ai-integration/cases/source-order-local-first.yaml"
   - "targets/voice-ai-integration/cases/convoai-sample-first.yaml"
+  - "targets/voice-ai-integration/cases/sample-repo-unavailable.yaml"

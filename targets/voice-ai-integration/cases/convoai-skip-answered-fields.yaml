@@ -1,0 +1,31 @@
+case_id: "convoai-skip-answered-fields"
+title: "Do not repeat ConvoAI fields that the user already answered"
+
+input:
+  user_prompt: "Build a ConvoAI app for iOS. Use DeepSeek."
+  locale: "en-US"
+
+setup:
+  docs_index_present: true
+  network_mode: "restricted"
+
+assert:
+  required:
+    - type: "file_read"
+      path: ".agents/skills/voice-ai-integration/intake/convoai.md"
+    - type: "file_read"
+      path: ".agents/skills/voice-ai-integration/references/conversational-ai/sample-repos.md"
+    - type: "route"
+      value: "convoai-primary"
+    - type: "reviewer_check"
+      prompt: "For an iOS ConvoAI app where platform and LLM are already known, did the assistant avoid re-asking those fields, skip any backend question for the native path, and ask only for the remaining TTS, ASR, and ASR language details?"
+    - type: "reviewer_check"
+      prompt: "Did the assistant make it clear that the native ConvoAI path does not need a separate server and can call the ConvoAI REST API directly from the client?"
+
+  forbidden: []
+
+notes:
+  why_it_matters: "Repeated intake questions are a common routing failure and the native path has different backend expectations."
+  likely_fix_files:
+    - ".agents/skills/voice-ai-integration/intake/convoai.md"
+    - ".agents/skills/voice-ai-integration/references/conversational-ai/sample-repos.md"

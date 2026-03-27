@@ -1,0 +1,26 @@
+case_id: "convoai-other-followup"
+title: "Repair an unresolved Other selection with a narrow ConvoAI follow-up"
+
+input:
+  user_prompt: "I need a customer support ConvoAI agent for Web.\n\nFollow-up from user: 1F 2E 3G 4G 5C"
+  locale: "en-US"
+
+setup:
+  docs_index_present: true
+  network_mode: "restricted"
+
+assert:
+  required:
+    - type: "file_read"
+      path: ".agents/skills/voice-ai-integration/intake/convoai.md"
+    - type: "route"
+      value: "convoai-primary"
+    - type: "reviewer_check"
+      prompt: "After the reply '1F 2E 3G 4G 5C', did the assistant ask only a narrow follow-up for the unresolved Other ASR language code instead of repeating the full ConvoAI checklist?"
+
+  forbidden: []
+
+notes:
+  why_it_matters: "Checklist repair should be surgical. Restarting intake wastes the prior turn and usually annoys the user."
+  likely_fix_files:
+    - ".agents/skills/voice-ai-integration/intake/convoai.md"

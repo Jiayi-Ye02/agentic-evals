@@ -1,0 +1,11 @@
+suite_id: "convoai-intake"
+title: "ConvoAI checklist and intake repair"
+
+cases:
+  - "targets/voice-ai-integration/cases/convoai-consolidated-checklist.yaml"
+  - "targets/voice-ai-integration/cases/convoai-skip-answered-fields.yaml"
+  - "targets/voice-ai-integration/cases/convoai-other-followup.yaml"
+  - "targets/voice-ai-integration/cases/convoai-structured-spec-after-reply.yaml"
+  - "targets/voice-ai-integration/cases/convoai-missing-mandatory-after-checklist.yaml"
+  - "targets/voice-ai-integration/cases/convoai-native-ios-no-backend-no-server.yaml"
+  - "targets/voice-ai-integration/cases/convoai-do-not-ask-app-certificate-during-intake.yaml"

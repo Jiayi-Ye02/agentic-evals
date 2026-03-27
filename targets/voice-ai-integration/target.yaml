@@ -10,6 +10,8 @@ default_suites:
   - "smoke"
   - "routing"
   - "source-order"
+  - "convoai-intake"
+  - "convoai-api"
 
 artifact_contract:
   required:
@@ -27,3 +29,5 @@ focus_areas:
   - "bootstrap"
   - "intake-routing"
   - "source-order"
+  - "convoai-intake"
+  - "convoai-api"

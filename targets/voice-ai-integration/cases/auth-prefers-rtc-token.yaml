@@ -1,0 +1,27 @@
+case_id: "auth-prefers-rtc-token"
+title: "Recommend RTC Token as the default ConvoAI auth path"
+
+input:
+  user_prompt: "ConvoAI auth: should I use Basic Auth or token?"
+  locale: "en-US"
+
+setup:
+  docs_index_present: true
+  network_mode: "restricted"
+
+assert:
+  required:
+    - type: "file_read"
+      path: ".agents/skills/voice-ai-integration/references/conversational-ai/README.md"
+    - type: "file_read"
+      path: ".agents/skills/voice-ai-integration/references/conversational-ai/convoai-restapi.md"
+    - type: "reviewer_check"
+      prompt: "Did the assistant recommend RTC Token as the default ConvoAI authentication path and present Basic Auth only as a fallback, rather than defaulting to Basic Auth?"
+
+  forbidden: []
+
+notes:
+  why_it_matters: "Auth guidance is security-sensitive and the default recommendation should follow the supported token path."
+  likely_fix_files:
+    - ".agents/skills/voice-ai-integration/references/conversational-ai/README.md"
+    - ".agents/skills/voice-ai-integration/references/conversational-ai/convoai-restapi.md"

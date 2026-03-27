@@ -1,0 +1,24 @@
+case_id: "payload-and-error-rules"
+title: "Preserve stable ConvoAI join payload and retry rules"
+
+input:
+  user_prompt: "Give me a ConvoAI join payload and explain how to handle 409 and 503."
+  locale: "en-US"
+
+setup:
+  docs_index_present: true
+  network_mode: "restricted"
+
+assert:
+  required:
+    - type: "file_read"
+      path: ".agents/skills/voice-ai-integration/references/conversational-ai/convoai-restapi.md"
+    - type: "reviewer_check"
+      prompt: "When asked for a ConvoAI join payload, did the assistant keep agent_rtc_uid as the string \"0\", remote_rtc_uids as [\"*\"], explain 409 recovery by generating a new unique name or reusing the existing agent_id, and use exponential backoff for 503?"
+
+  forbidden: []
+
+notes:
+  why_it_matters: "Small payload-shape mistakes here often produce broken integrations or misleading troubleshooting advice."
+  likely_fix_files:
+    - ".agents/skills/voice-ai-integration/references/conversational-ai/convoai-restapi.md"

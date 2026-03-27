@@ -1,0 +1,26 @@
+case_id: "convoai-structured-spec-after-reply"
+title: "Turn a completed checklist reply directly into a ConvoAI structured spec"
+
+input:
+  user_prompt: "我要做一个客服语音助手，用 ConvoAI。\n\nFollow-up from user: 1F 2F 3C 4G 5G 6A"
+  locale: "zh-CN"
+
+setup:
+  docs_index_present: true
+  network_mode: "restricted"
+
+assert:
+  required:
+    - type: "file_read"
+      path: ".agents/skills/voice-ai-integration/intake/convoai.md"
+    - type: "route"
+      value: "convoai-primary"
+    - type: "reviewer_check"
+      prompt: "After the completed checklist reply '1F 2F 3C 4G 5G 6A', did the assistant directly normalize the answers into a ConvoAI structured spec, apply any documented defaults, and avoid asking for another confirmation turn?"
+
+  forbidden: []
+
+notes:
+  why_it_matters: "Once the intake blockers are resolved, the next step should be a usable spec, not another round of clarifications."
+  likely_fix_files:
+    - ".agents/skills/voice-ai-integration/intake/convoai.md"
