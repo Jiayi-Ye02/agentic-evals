@@ -17,7 +17,7 @@ assert:
     - type: "command_executed"
       argv_prefix:
         - "bash"
-        - "skills/voice-ai-integration/scripts/fetch-docs.sh"
+        - ".agents/skills/voice-ai-integration/scripts/fetch-docs.sh"
     - type: "file_read"
       path: ".agents/skills/voice-ai-integration/references/conversational-ai/README.md"
     - type: "reviewer_check"

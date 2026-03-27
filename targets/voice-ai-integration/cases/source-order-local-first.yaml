@@ -25,7 +25,7 @@ assert:
     - type: "command_executed"
       argv_prefix:
         - "bash"
-        - "skills/voice-ai-integration/scripts/fetch-doc-content.sh"
+        - ".agents/skills/voice-ai-integration/scripts/fetch-doc-content.sh"
 
 notes:
   why_it_matters: "The target skill says local references are the default starting point. Fetching docs too early is wasted work and increases failure surface."

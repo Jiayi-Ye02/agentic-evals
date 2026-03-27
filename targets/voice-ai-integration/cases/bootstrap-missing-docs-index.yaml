@@ -16,9 +16,9 @@ assert:
     - type: "command_executed"
       argv_prefix:
         - "bash"
-        - "skills/voice-ai-integration/scripts/fetch-docs.sh"
+        - ".agents/skills/voice-ai-integration/scripts/fetch-docs.sh"
     - type: "source_order"
-      first: "bash skills/voice-ai-integration/scripts/fetch-docs.sh"
+      first: "bash .agents/skills/voice-ai-integration/scripts/fetch-docs.sh"
       before: ".agents/skills/voice-ai-integration/intake/README.md"
 
   forbidden: []

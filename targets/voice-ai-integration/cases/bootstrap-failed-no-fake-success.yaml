@@ -15,7 +15,7 @@ assert:
     - type: "command_executed"
       argv_prefix:
         - "bash"
-        - "skills/voice-ai-integration/scripts/fetch-docs.sh"
+        - ".agents/skills/voice-ai-integration/scripts/fetch-docs.sh"
     - type: "reviewer_check"
       prompt: "If the docs bootstrap failed and the user explicitly asked for the latest docs, did the assistant avoid pretending it had verified the latest document contents?"
 
