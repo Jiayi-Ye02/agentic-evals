@@ -24,10 +24,11 @@ Every run should follow this order:
 2. Read `targets/voice-ai-integration/target.yaml`.
 3. Read the selected suite files.
 4. Create `runs/<run_id>/manifest.json`.
-5. Execute each case.
-6. Save a readable `transcript.md`.
-7. Write one `case-results/<case_id>.json` file per case.
-8. Write `report.md`.
+5. Create a parent temp directory for isolated per-case workspaces.
+6. Execute each case in its own fresh isolated workspace.
+7. Save a readable `transcript.md`.
+8. Write one `case-results/<case_id>.json` file per case.
+9. Write `report.md`.
 
 ## Required Run Artifacts
 
@@ -51,6 +52,8 @@ runs/<run_id>/
 - `target_skill_path`
 - `started_at`
 - `model` if available
+- `workspace_mode` with value `isolated-per-case`
+- `case_workspace_root` for the parent temp directory used for per-case workspaces
 - `notes` if the environment is unusual
 
 ## Case Status
@@ -75,6 +78,18 @@ Preferred evidence:
 - concrete assistant outputs quoted in `transcript.md`
 
 Do not mark a case `pass` from a generic assistant claim such as "I checked the skill" unless the transcript or tool trace shows what was actually read or run.
+
+## Workspace Isolation
+
+Each case must run in its own fresh isolated workspace.
+
+Rules:
+
+- Do not execute cases directly in the user's main workspace.
+- Create a new case workspace under `case_workspace_root` for every case.
+- Apply case `setup` mutations only inside that case workspace.
+- No case may observe filesystem mutations left by a previous case unless the current case setup explicitly recreates them.
+- Preserve the case workspace at least until `case-results/<case_id>.json` and `report.md` are written. Cleanup after reporting is optional.
 
 ## Supported Assertion Types
 
@@ -129,6 +144,7 @@ Each `case-results/<case_id>.json` file must contain:
 ```json
 {
   "case_id": "example-case",
+  "workspace_root": "/tmp/skill-eval/run-123/example-case",
   "status": "pass",
   "blocked_reason": null,
   "assertions": [

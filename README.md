@@ -132,6 +132,11 @@ runs/<run_id>/
 └── report.md
 ```
 
+Each run must also use isolated per-case workspaces under a temp parent directory.
+Those case workspaces do not need to live inside `runs/<run_id>/`, but the run
+artifacts must record the parent `case_workspace_root` and each case result must
+record that case's `workspace_root`.
+
 Status values used by this repo:
 
 - `pass`
@@ -143,8 +148,9 @@ Status values used by this repo:
 1. Read `docs/test-protocol.md`.
 2. Read `targets/voice-ai-integration/target.yaml`.
 3. Select one or more suite files, or a single case file.
-4. Execute the selected cases against `voice-ai-integration`.
-5. Write the required run artifacts under `runs/<run_id>/`.
+4. Create a parent temp directory for isolated per-case workspaces.
+5. Execute the selected cases against `voice-ai-integration`, one fresh case workspace per case.
+6. Write the required run artifacts under `runs/<run_id>/`.
 
 ## How To Add A Test
 
@@ -158,6 +164,7 @@ Use this process when adding a new case:
 6. Add the new case path to one suite file under `targets/voice-ai-integration/suites/`.
 7. If you created a new suite that should run by default, also add its `suite_id` to `targets/voice-ai-integration/target.yaml`.
 8. Validate the repo after the change: all YAML should parse, every case should be referenced by a suite, and no suite should reference a missing case.
+9. If the case relies on setup state, make sure that setup can be reproduced inside an isolated per-case workspace without mutating the user's main workspace.
 
 Minimal case skeleton:
 
@@ -205,6 +212,7 @@ Use these rules to keep the test set healthy over time:
 - Keep cases behavior-first. If two cases fail for the same underlying reason, merge or rewrite them so each one protects a distinct rule.
 - Keep suites thematic and readable. A suite should answer one question, such as bootstrap, routing, source ordering, intake repair, or API semantics.
 - Prefer trace-based evidence over subjective review. `reviewer_check` is useful, but if a behavior can be made observable through file reads, commands, or ordering, encode it that way instead.
+- Preserve workspace isolation. Cases should not assume state leaked from earlier cases in the same run.
 - Refresh high-value cases when the skill workflow changes. The first places to review are `targets/voice-ai-integration/target.yaml`, the affected suite file, and any case whose `likely_fix_files` point at the changed skill docs.
 - Audit coverage regularly. At a minimum, check for YAML parse errors, unreferenced cases, duplicated suite entries, and stale suite descriptions whenever cases are added or removed.
 - Preserve naming consistency. Use kebab-case for filenames and `case_id`, and write titles as short descriptions of the protected behavior.
