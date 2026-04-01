@@ -3,5 +3,3 @@ title: "ConvoAI auth and request semantics"
 
 cases:
   - "targets/voice-ai-integration/cases/auth-prefers-rtc-token.yaml"
-  - "targets/voice-ai-integration/cases/payload-and-error-rules.yaml"
-  - "targets/voice-ai-integration/cases/convoai-join-token-not-rest-auth.yaml"

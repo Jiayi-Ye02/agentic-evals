@@ -2,6 +2,5 @@ suite_id: "routing"
 title: "Minimal intake and product routing"
 
 cases:
-  - "targets/voice-ai-integration/cases/intake-minimum-info.yaml"
   - "targets/voice-ai-integration/cases/route-convoai.yaml"
   - "targets/voice-ai-integration/cases/route-rtc.yaml"

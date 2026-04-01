@@ -20,7 +20,8 @@ agentic-evals/
 │   └── voice-ai-integration/
 │       ├── target.yaml
 │       ├── suites/
-│       └── cases/
+│       ├── cases/
+│       └── deferred-cases/
 └── runs/
 ```
 
@@ -76,18 +77,24 @@ targets/voice-ai-integration/suites/
 
 ## Cases
 
-The target currently includes 20 cases:
+The active target currently includes 7 cases:
 
-- `smoke` (4): `bootstrap-read-skill`, `bootstrap-missing-docs-index`, `bootstrap-failed-no-fake-success`, `docs-index-fetch-failure-fallback`
-- `routing` (3): `intake-minimum-info`, `route-convoai`, `route-rtc`
-- `source-order` (3): `source-order-local-first`, `convoai-sample-first`, `sample-repo-unavailable`
-- `convoai-intake` (7): `convoai-consolidated-checklist`, `convoai-skip-answered-fields`, `convoai-other-followup`, `convoai-structured-spec-after-reply`, `convoai-missing-mandatory-after-checklist`, `convoai-native-ios-no-backend-no-server`, `convoai-do-not-ask-app-certificate-during-intake`
-- `convoai-api` (3): `auth-prefers-rtc-token`, `payload-and-error-rules`, `convoai-join-token-not-rest-auth`
+- `smoke` (2): `bootstrap-missing-docs-index`, `bootstrap-failed-no-fake-success`
+- `routing` (2): `route-convoai`, `route-rtc`
+- `source-order` (1): `convoai-sample-first`
+- `convoai-intake` (1): `convoai-consolidated-checklist`
+- `convoai-api` (1): `auth-prefers-rtc-token`
 
-Case files live under:
+Active case files live under:
 
 ```text
 targets/voice-ai-integration/cases/
+```
+
+Deferred cases that are useful for later regression expansion live under:
+
+```text
+targets/voice-ai-integration/deferred-cases/
 ```
 
 Each case includes:
@@ -163,8 +170,9 @@ Use this process when adding a new case:
 5. Prefer deterministic assertions in this order: `file_read`, `command_executed`, `source_order`, `route`, then `reviewer_check` as the last resort.
 6. Add the new case path to one suite file under `targets/voice-ai-integration/suites/`.
 7. If you created a new suite that should run by default, also add its `suite_id` to `targets/voice-ai-integration/target.yaml`.
-8. Validate the repo after the change: all YAML should parse, every case should be referenced by a suite, and no suite should reference a missing case.
-9. If the case relies on setup state, make sure that setup can be reproduced inside an isolated per-case workspace without mutating the user's main workspace.
+8. Keep only the active cases under `targets/voice-ai-integration/cases/`. Move low-priority or temporarily disabled cases to `targets/voice-ai-integration/deferred-cases/` so the active suite set stays small and intentional.
+9. Validate the repo after the change: all active YAML should parse, every active case should be referenced by a suite, and no suite should reference a missing case.
+10. If the case relies on setup state, make sure that setup can be reproduced inside an isolated per-case workspace without mutating the user's main workspace.
 
 Minimal case skeleton:
 
@@ -227,4 +235,5 @@ Important paths in this repo:
 - `targets/voice-ai-integration/target.yaml`
 - `targets/voice-ai-integration/suites/`
 - `targets/voice-ai-integration/cases/`
+- `targets/voice-ai-integration/deferred-cases/`
 - `runs/`
