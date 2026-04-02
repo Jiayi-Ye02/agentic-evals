@@ -1,7 +1,5 @@
 # Quickstart For First-Time Users
 
-This guide is for people who have never used an agentic test setup before.
-
 If you only want one thing to remember, remember this:
 
 `agentic-evals` defines what to test, `skill-eval` runs the test, and a fresh Codex sub-agent is the thing being judged.
