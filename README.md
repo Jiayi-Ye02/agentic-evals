@@ -2,6 +2,8 @@
 
 `agentic-evals` is a target-driven test repo for running agentic evaluations against one skill at a time.
 
+New here: start with [`docs/quickstart.md`](./docs/quickstart.md), then come back to this README for the full repo contract.
+
 The repo defines:
 
 - the evaluation protocol
