@@ -2,8 +2,6 @@
 
 This file is the agent-facing contract for evaluator agents such as `skill-eval`.
 
-Human readers should start with [README.md](./README.md). First-time operators should start with [docs/quickstart.md](./docs/quickstart.md).
-
 ## Purpose
 
 `agentic-evals` is a target-driven evaluation repo for testing one skill at a time.
@@ -109,16 +107,29 @@ When a case is `blocked`, include `blocked_reason` with one of:
 
 Only use statuses allowed by `targets/<target_id>/target.yaml`.
 
-## Evidence Standard
+## Evidence Policy
 
 Preferred evidence:
 
-- files read
-- commands executed
-- ordered file and command traces
-- concrete assistant outputs quoted in `transcript.md`
+- accepted fresh-agent file reads
+- accepted fresh-agent commands executed
+- ordered accepted fresh-agent file and command traces
+- concrete accepted fresh-agent outputs quoted in `transcript.md`
+
+Prefer accepted fresh-agent traces over evaluator-side inference.
 
 Do not mark a case `pass` from a generic assistant claim such as "I checked the skill" unless the transcript or tool trace shows what was actually read or run.
+
+Static reads by the evaluator are allowed for:
+
+- loading the repo contract
+- understanding a case
+- understanding the target skill after the fresh-agent run
+- mapping failures to likely fix files
+
+Static reads by the evaluator are not enough on their own to mark a dynamic case `pass` when a fresh-agent run was available.
+
+Invalid attempts can explain `notes`, but they cannot satisfy assertions or justify a `pass`.
 
 ## Workspace Isolation
 
