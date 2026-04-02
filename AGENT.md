@@ -1,25 +1,75 @@
-# Agentic Eval Protocol
+# Agent Contract For `agentic-evals`
 
-This repo is a proof-of-concept evaluator for repo-defined target skills.
-The current default target is `voice-ai-integration`.
+This file is the agent-facing contract for evaluator agents such as `skill-eval`.
 
-The goal is not to build a complete eval platform. The goal is to answer:
+Human readers should start with [README.md](./README.md). First-time operators should start with [docs/quickstart.md](./docs/quickstart.md).
 
-1. Can a repo-defined evaluator run the same way more than once?
-2. Can it catch real problems in the selected target skill?
-3. Can the output guide concrete edits to the target skill?
+## Purpose
 
-## Source Of Truth
+`agentic-evals` is a target-driven evaluation repo for testing one skill at a time.
 
-- This test repo is the source of truth for suites, cases, assertions, and report shape.
-- The target skill is the source of truth for the behavior being tested.
-- The evaluator skill must not invent new rules when the repo is silent.
+This repo is the source of truth for:
+
+- targets
+- suites
+- cases
+- assertions
+- required run artifacts
+- report shape
+
+The target skill remains the source of truth for the behavior being tested.
+The evaluator must not invent new rules when this repo is silent.
 
 If a case cannot be judged reliably from the available evidence, mark it `blocked`.
 
+The current default target is `voice-ai-integration`.
+
+## Required Read Order
+
+Before executing any case, follow this order:
+
+1. Read this file.
+2. Resolve `target_id`. If none is provided, use the repo default target.
+3. Read `targets/<target_id>/target.yaml`.
+4. Read the selected suite files.
+5. Read each case file referenced by those suites, or the selected case file.
+6. Create `runs/<run_id>/manifest.json`.
+7. Create a parent temp directory for isolated per-case workspaces.
+8. Execute each case in its own fresh isolated workspace.
+9. Save a readable `transcript.md`.
+10. Write one `case-results/<case_id>.json` file per case.
+11. Write `report.md`.
+
+Do not start execution before the case set is known.
+
+## Repo Layout
+
+```text
+agentic-evals/
+├── AGENT.md
+├── README.md
+├── docs/
+│   └── quickstart.md
+├── targets/
+│   └── <target_id>/
+│       ├── target.yaml
+│       ├── suites/
+│       └── cases/
+└── runs/
+```
+
+## Source Of Truth
+
+- `targets/<target_id>/target.yaml` defines the target under test, the entry skill, the skill roots that may be consulted, the default suites, the required run artifacts, and the allowed statuses.
+- `targets/<target_id>/suites/` groups active cases into runnable suites.
+- `targets/<target_id>/cases/` holds active cases.
+- `targets/<target_id>/deferred-cases/` holds backlog cases that are intentionally not active.
+
+Deferred cases are not part of the runnable active suite set unless a human explicitly promotes them.
+
 ## Run Workflow
 
-Every run should follow this order:
+Every evaluator that uses this repo should follow this order:
 
 1. Read this file.
 2. Resolve `target_id`. If none is provided, use the repo default target.
@@ -58,6 +108,8 @@ runs/<run_id>/
 - `case_workspace_root` for the parent temp directory used for per-case workspaces
 - `notes` if the environment is unusual
 
+Each case result must record that case's accepted `workspace_root`.
+
 ## Case Status
 
 - `pass`: all required assertions passed with enough evidence
@@ -70,13 +122,15 @@ When a case is `blocked`, include `blocked_reason` with one of:
 - `unclear-rule`
 - `insufficient-evidence`
 
+Only use statuses allowed by `targets/<target_id>/target.yaml`.
+
 ## Evidence Standard
 
 Preferred evidence:
 
 - files read
 - commands executed
-- ordered file/command traces
+- ordered file and command traces
 - concrete assistant outputs quoted in `transcript.md`
 
 Do not mark a case `pass` from a generic assistant claim such as "I checked the skill" unless the transcript or tool trace shows what was actually read or run.
@@ -91,17 +145,18 @@ Rules:
 - Create a new case workspace under `case_workspace_root` for every case.
 - Apply case `setup` mutations only inside that case workspace.
 - No case may observe filesystem mutations left by a previous case unless the current case setup explicitly recreates them.
-- Preserve the case workspace at least until `case-results/<case_id>.json` and `report.md` are written. Cleanup after reporting is optional.
+- Preserve the accepted case workspace at least until `case-results/<case_id>.json` and `report.md` are written. Cleanup after reporting is optional.
 
-## Supported Assertion Types
+## Assertion Contract
 
-Cases may also include:
+Cases may include:
 
 - optional `assert.summary` as a short human-readable description of the protected behavior
 - optional per-assertion `description` to explain the intent of that single check
 - optional per-assertion `evidence_scope` to hint whether the evaluator should rely mainly on `trace`, `final_answer`, or both
 
-These human-readable fields are the assertion contract. Older file-read, command, ordering, and route requirements should be rewritten into this natural-language form rather than kept as separate machine-oriented types.
+These human-readable fields are the assertion contract.
+Older file-read, command, ordering, and route requirements should be rewritten into this natural-language form rather than kept as separate machine-oriented types.
 
 ### Assertion Entry
 
@@ -114,7 +169,9 @@ Fields:
 - optional `fail_signals`
 - optional `evidence_scope`
 
-The evaluator must judge the check from the accepted trace and final answer. Pass only when the available evidence satisfies the pass criteria and does not show any fail signal. If the transcript does not support a reliable answer, mark the assertion `blocked`.
+The evaluator must judge the check from the accepted trace and final answer.
+Pass only when the available evidence satisfies the pass criteria and does not show any fail signal.
+If the transcript does not support a reliable answer, mark the assertion `blocked`.
 
 ## Case Result Shape
 
@@ -147,4 +204,4 @@ Each `case-results/<case_id>.json` file must contain:
 3. `Failures`
 4. `Suggested Next Fixes`
 
-The final section should list at most 3 concrete fixes and point to real files.
+Keep `Suggested Next Fixes` to at most 3 items and point to real files.
