@@ -24,9 +24,9 @@ If a case cannot be judged reliably from the available evidence, mark it `blocke
 
 The current default target is `voice-ai-integration`.
 
-## Required Read Order
+## Run Workflow
 
-Before executing any case, follow this order:
+Every evaluator that uses this repo should follow this order:
 
 1. Read this file.
 2. Resolve `target_id`. If none is provided, use the repo default target.
@@ -66,21 +66,6 @@ agentic-evals/
 - `targets/<target_id>/deferred-cases/` holds backlog cases that are intentionally not active.
 
 Deferred cases are not part of the runnable active suite set unless a human explicitly promotes them.
-
-## Run Workflow
-
-Every evaluator that uses this repo should follow this order:
-
-1. Read this file.
-2. Resolve `target_id`. If none is provided, use the repo default target.
-3. Read `targets/<target_id>/target.yaml`.
-4. Read the selected suite files.
-5. Create `runs/<run_id>/manifest.json`.
-6. Create a parent temp directory for isolated per-case workspaces.
-7. Execute each case in its own fresh isolated workspace.
-8. Save a readable `transcript.md`.
-9. Write one `case-results/<case_id>.json` file per case.
-10. Write `report.md`.
 
 ## Required Run Artifacts
 

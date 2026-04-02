@@ -2,7 +2,6 @@
 
 `agentic-evals` is a target-driven evaluation repo for testing one skill at a time.
 
-This README is for human readers.
 
 This repo defines:
 
