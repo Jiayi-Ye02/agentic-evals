@@ -10,16 +10,29 @@ setup:
   network_mode: "restricted"
 
 assert:
+  summary: "When the docs index is missing, the assistant should attempt Step 0 bootstrap before moving into routing or intake."
   required:
-    - type: "file_read"
-      path: ".agents/skills/voice-ai-integration/SKILL.md"
-    - type: "command_executed"
-      argv_prefix:
-        - "bash"
-        - ".agents/skills/voice-ai-integration/scripts/fetch-docs.sh"
-    - type: "source_order"
-      first: "bash .agents/skills/voice-ai-integration/scripts/fetch-docs.sh"
-      before: ".agents/skills/voice-ai-integration/intake/README.md"
+    - description: "The accepted trace should show that the top-level skill instructions defining Step 0 were consulted."
+      pass_criteria:
+        - "TRACE_FILES_READ includes `.agents/skills/voice-ai-integration/SKILL.md`"
+      fail_signals:
+        - "The accepted trace never shows a read of `.agents/skills/voice-ai-integration/SKILL.md`"
+      evidence_scope:
+        - "trace"
+    - description: "The accepted trace should show that the docs bootstrap step was attempted."
+      pass_criteria:
+        - "The accepted trace shows an attempt to run `fetch-docs.sh` or an equivalent Step 0 bootstrap action."
+      fail_signals:
+        - "The accepted trace shows no docs bootstrap attempt"
+      evidence_scope:
+        - "trace"
+    - description: "The accepted trace should show that bootstrap happened before any product-module reference guidance was consulted."
+      pass_criteria:
+        - "The trace shows the docs bootstrap attempt before any product-module README or reference file is consulted."
+      fail_signals:
+        - "The trace shows product-module guidance consulted before the docs bootstrap attempt"
+      evidence_scope:
+        - "trace"
 
   forbidden: []
 
@@ -27,3 +40,4 @@ notes:
   why_it_matters: "Step 0 is mandatory in the target skill. Skipping it weakens all later doc-fetch behavior."
   likely_fix_files:
     - ".agents/skills/voice-ai-integration/SKILL.md"
+    - ".agents/skills/voice-ai-integration/scripts/fetch-docs.sh"

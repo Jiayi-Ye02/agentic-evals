@@ -1,0 +1,39 @@
+case_id: "convoai-phase1-only-before-gates"
+title: "Quickstart should stay in phase-1 docs before gates are resolved"
+
+input:
+  user_prompt: "我想做一个 Web 端 AI 语音助手，后端 Python。"
+  locale: "zh-CN"
+
+setup:
+  docs_index_present: false
+  network_mode: "restricted"
+
+assert:
+  summary: "For unresolved quickstart or integration requests, the assistant should stay within the phase-1 ConvoAI docs and avoid phase-2 implementation files until the quickstart gates are resolved."
+  required:
+    - description: "The accepted trace should show that the ConvoAI routing guide and quickstart state machine were consulted."
+      pass_criteria:
+        - "The accepted trace includes `.agents/skills/voice-ai-integration/references/conversational-ai/README.md`."
+        - "The accepted trace includes `.agents/skills/voice-ai-integration/references/conversational-ai/quickstart.md`."
+      fail_signals:
+        - "The accepted trace never consults the ConvoAI routing guide."
+        - "The accepted trace never consults the quickstart state machine."
+      evidence_scope:
+        - "trace"
+    - description: "Before the user resolves the quickstart gates, the accepted trace should stay out of phase-2 ConvoAI implementation docs."
+      pass_criteria:
+        - "Before the first user reply, the accepted trace stays within the ConvoAI phase-1 files needed for routing and quickstart gating."
+      fail_signals:
+        - "The accepted trace reads `sample-repos.md`, `providers.md`, `generation-rules.md`, `pipeline-integration.md`, or any `convoai-restapi/*` file before the quickstart gates are resolved."
+        - "The accepted trace performs sample inspection or repo-clone preparation before the quickstart gates are resolved."
+      evidence_scope:
+        - "trace"
+
+  forbidden: []
+
+notes:
+  why_it_matters: "The new ConvoAI module explicitly locks quickstart requests to phase-1 docs until the user resolves the gating questions."
+  likely_fix_files:
+    - ".agents/skills/voice-ai-integration/references/conversational-ai/README.md"
+    - ".agents/skills/voice-ai-integration/references/conversational-ai/quickstart.md"

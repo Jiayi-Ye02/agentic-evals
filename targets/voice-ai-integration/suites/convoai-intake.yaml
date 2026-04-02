@@ -1,5 +1,5 @@
 suite_id: "convoai-intake"
-title: "ConvoAI checklist and intake repair"
+title: "ConvoAI quickstart first-turn gating"
 
 cases:
-  - "targets/voice-ai-integration/cases/convoai-consolidated-checklist.yaml"
+  - "targets/voice-ai-integration/cases/convoai-quickstart-first-turn.yaml"

@@ -1,5 +1,5 @@
 suite_id: "source-order"
-title: "Reference and source ordering"
+title: "ConvoAI quickstart phase boundaries"
 
 cases:
-  - "targets/voice-ai-integration/cases/convoai-sample-first.yaml"
+  - "targets/voice-ai-integration/cases/convoai-phase1-only-before-gates.yaml"

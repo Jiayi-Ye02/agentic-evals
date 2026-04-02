@@ -2,7 +2,6 @@ target_id: "voice-ai-integration"
 entry_skill: ".agents/skills/voice-ai-integration/SKILL.md"
 
 roots:
-  - ".agents/skills/voice-ai-integration/intake"
   - ".agents/skills/voice-ai-integration/references"
   - ".agents/skills/voice-ai-integration/scripts"
 
@@ -29,5 +28,5 @@ focus_areas:
   - "bootstrap"
   - "intake-routing"
   - "source-order"
-  - "convoai-intake"
+  - "convoai-quickstart"
   - "convoai-api"

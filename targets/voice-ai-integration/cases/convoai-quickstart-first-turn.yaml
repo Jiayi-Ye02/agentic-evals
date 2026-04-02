@@ -1,0 +1,41 @@
+case_id: "convoai-quickstart-first-turn"
+title: "ConvoAI quickstart should start with intro plus technical-path confirmation"
+
+input:
+  user_prompt: "我想做一个 AI 语音助手，用声网 ConvoAI。"
+  locale: "zh-CN"
+
+setup:
+  docs_index_present: false
+  network_mode: "restricted"
+
+assert:
+  summary: "For a first-time ConvoAI request with no proven baseline, the assistant should enter quickstart mode, read only the phase-1 guidance, and start with a brief intro plus technical-path confirmation."
+  required:
+    - description: "The accepted trace should show that the ConvoAI routing guide and quickstart state machine were consulted."
+      pass_criteria:
+        - "The accepted trace includes `.agents/skills/voice-ai-integration/references/conversational-ai/README.md`."
+        - "The accepted trace includes `.agents/skills/voice-ai-integration/references/conversational-ai/quickstart.md`."
+      fail_signals:
+        - "The accepted trace never consults the ConvoAI routing guide."
+        - "The accepted trace never consults the quickstart state machine."
+      evidence_scope:
+        - "trace"
+    - description: "The first answer should give a short plain-language ConvoAI intro and then ask for the technical path."
+      pass_criteria:
+        - "The answer briefly explains what ConvoAI is or how the AI voice-agent flow works in plain language."
+        - "The answer immediately follows with the technical-path choice, such as the official quickstart/sample path versus a custom stack."
+      fail_signals:
+        - "The answer starts with provider, credential, or implementation-detail questions before the technical-path choice."
+        - "The answer jumps into project structure, framework choices, or code planning before the technical-path choice is resolved."
+      evidence_scope:
+        - "final_answer"
+        - "trace"
+
+  forbidden: []
+
+notes:
+  why_it_matters: "The current ConvoAI flow is a gated quickstart state machine, so the first turn must not skip straight into credentials, providers, or implementation."
+  likely_fix_files:
+    - ".agents/skills/voice-ai-integration/references/conversational-ai/README.md"
+    - ".agents/skills/voice-ai-integration/references/conversational-ai/quickstart.md"

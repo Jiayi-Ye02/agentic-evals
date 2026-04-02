@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "voice-ai-integration": {
+      "source": "Shengwang-Community/skills",
+      "sourceType": "github",
+      "computedHash": "77874d97530ef3f4dde9196c644c52bb8a210b14af477795f613515f403ab89d"
+    }
+  }
+}

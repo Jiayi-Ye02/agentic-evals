@@ -103,19 +103,21 @@ Each case includes:
 - `title`
 - `input`
 - `setup`
+- optional `assert.summary`
 - `assert.required`
 - `assert.forbidden`
 - `notes`
 
 ## Assertions
 
-The protocol currently supports these assertion types:
+Cases now use human-readable assertion entries only.
 
-- `file_read`
-- `command_executed`
-- `source_order`
-- `route`
-- `reviewer_check`
+For maintainability:
+
+- Prefer `assert.summary` for a short case-level description of the protected behavior.
+- Express every requirement as an assertion entry with clear `description`, `pass_criteria`, and `fail_signals`.
+- Preserve the old assertion meaning when converting a case. If an older case checked file reads, commands, ordering, or routing, rewrite those requirements into natural-language rubric checks instead of dropping them.
+- Use `evidence_scope` to hint whether the evaluator should look mainly at `trace`, `final_answer`, or both.
 
 Assertion semantics are defined in `docs/test-protocol.md`.
 
@@ -167,7 +169,7 @@ Use this process when adding a new case:
 2. Choose the smallest existing suite that matches the behavior. Create a new suite only when the new cases form a stable theme.
 3. Add a new YAML file under `targets/voice-ai-integration/cases/`. Prefer a filename that matches `case_id`.
 4. Keep `input.user_prompt` realistic and keep `setup` minimal. Only add setup flags that are needed to express the scenario.
-5. Prefer deterministic assertions in this order: `file_read`, `command_executed`, `source_order`, `route`, then `reviewer_check` as the last resort.
+5. Write every assertion as a natural-language assertion entry. If an older test idea depends on file reads, commands, ordering, or routing, convert that requirement into natural language instead of encoding it as a separate assertion type.
 6. Add the new case path to one suite file under `targets/voice-ai-integration/suites/`.
 7. If you created a new suite that should run by default, also add its `suite_id` to `targets/voice-ai-integration/target.yaml`.
 8. Keep only the active cases under `targets/voice-ai-integration/cases/`. Move low-priority or temporarily disabled cases to `targets/voice-ai-integration/deferred-cases/` so the active suite set stays small and intentional.
@@ -189,11 +191,25 @@ setup:
   network_mode: "restricted"
 
 assert:
+  summary: "The assistant should consult the skill and then follow the supported path."
   required:
-    - type: "file_read"
-      path: ".agents/skills/voice-ai-integration/SKILL.md"
-    - type: "reviewer_check"
-      prompt: "Did the assistant do the expected thing?"
+    - description: "The accepted trace should show that the top-level skill instructions were consulted before answering."
+      pass_criteria:
+        - "TRACE_FILES_READ includes `.agents/skills/voice-ai-integration/SKILL.md`"
+      fail_signals:
+        - "The accepted trace never shows a read of `.agents/skills/voice-ai-integration/SKILL.md`"
+      evidence_scope:
+        - "trace"
+    - description: "The answer should stay on the supported implementation path."
+      pass_criteria:
+        - "Uses the supported path as the default recommendation"
+        - "Keeps unsupported alternatives as fallback or explicitly unsupported"
+      fail_signals:
+        - "Leads with an unsupported path"
+        - "Never distinguishes the supported path from the fallback"
+      evidence_scope:
+        - "final_answer"
+        - "trace"
 
   forbidden: []
 
@@ -219,7 +235,7 @@ Use these rules to keep the test set healthy over time:
 
 - Keep cases behavior-first. If two cases fail for the same underlying reason, merge or rewrite them so each one protects a distinct rule.
 - Keep suites thematic and readable. A suite should answer one question, such as bootstrap, routing, source ordering, intake repair, or API semantics.
-- Prefer trace-based evidence over subjective review. `reviewer_check` is useful, but if a behavior can be made observable through file reads, commands, or ordering, encode it that way instead.
+- Prefer trace-based evidence over vague review. Even though every assertion is now a natural-language rubric entry, the strongest checks still point at concrete evidence such as trace reads, command attempts, ordering, and explicit route commitments.
 - Preserve workspace isolation. Cases should not assume state leaked from earlier cases in the same run.
 - Refresh high-value cases when the skill workflow changes. The first places to review are `targets/voice-ai-integration/target.yaml`, the affected suite file, and any case whose `likely_fix_files` point at the changed skill docs.
 - Audit coverage regularly. At a minimum, check for YAML parse errors, unreferenced cases, duplicated suite entries, and stale suite descriptions whenever cases are added or removed.

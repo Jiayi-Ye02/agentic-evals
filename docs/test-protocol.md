@@ -93,49 +93,26 @@ Rules:
 
 ## Supported Assertion Types
 
-### `file_read`
+Cases may also include:
 
-Pass when the transcript or tool trace shows the evaluator opened the expected file.
+- optional `assert.summary` as a short human-readable description of the protected behavior
+- optional per-assertion `description` to explain the intent of that single check
+- optional per-assertion `evidence_scope` to hint whether the evaluator should rely mainly on `trace`, `final_answer`, or both
 
-Fields:
+These human-readable fields are the assertion contract. Older file-read, command, ordering, and route requirements should be rewritten into this natural-language form rather than kept as separate machine-oriented types.
 
-- `path`
-- optional `before_any_of`
+### Assertion Entry
 
-### `command_executed`
-
-Pass when the transcript or tool trace shows the command was attempted.
-
-Fields:
-
-- `argv_prefix`
-
-### `source_order`
-
-Pass when the evidence shows one source was consulted before another source.
+Use this shape for every required or forbidden assertion.
 
 Fields:
 
-- `first`
-- `before`
+- optional `description`
+- `pass_criteria`
+- optional `fail_signals`
+- optional `evidence_scope`
 
-### `route`
-
-Pass when the transcript clearly states the chosen primary route.
-
-- `convoai-primary`
-- `rtc-primary`
-- `token-server-primary`
-
-### `reviewer_check`
-
-Use this only when the behavior cannot be made reliable from file or command traces alone.
-
-Fields:
-
-- `prompt`
-
-The evaluator must answer the prompt from evidence in the transcript. If the transcript does not support a reliable answer, mark the assertion `blocked`.
+The evaluator must judge the check from the accepted trace and final answer. Pass only when the available evidence satisfies the pass criteria and does not show any fail signal. If the transcript does not support a reliable answer, mark the assertion `blocked`.
 
 ## Case Result Shape
 
@@ -149,8 +126,7 @@ Each `case-results/<case_id>.json` file must contain:
   "blocked_reason": null,
   "assertions": [
     {
-      "type": "file_read",
-      "summary": "Read SKILL.md before any routing file",
+      "summary": "Consulted the top-level skill instructions before answering.",
       "status": "pass",
       "evidence": ["transcript.md#L12"]
     }

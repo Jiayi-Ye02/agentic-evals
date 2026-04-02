@@ -6,22 +6,37 @@ input:
   locale: "en-US"
 
 setup:
-  docs_index_present: true
+  docs_index_present: false
   network_mode: "restricted"
 
 assert:
+  summary: "ConvoAI auth guidance should recommend RTC Token by default and treat Basic Auth as a fallback."
   required:
-    - type: "file_read"
-      path: ".agents/skills/voice-ai-integration/references/conversational-ai/README.md"
-    - type: "file_read"
-      path: ".agents/skills/voice-ai-integration/references/conversational-ai/convoai-restapi.md"
-    - type: "reviewer_check"
-      prompt: "Did the assistant recommend RTC Token as the default ConvoAI authentication path and present Basic Auth only as a fallback, rather than defaulting to Basic Auth?"
+    - description: "The accepted trace should show that shared Shengwang auth guidance and at least one ConvoAI-specific auth source were consulted."
+      pass_criteria:
+        - "The accepted trace includes `.agents/skills/voice-ai-integration/references/general/credentials-and-auth.md`."
+        - "The accepted trace also includes at least one ConvoAI-specific auth source, such as `.agents/skills/voice-ai-integration/references/conversational-ai/README.md` or `.agents/skills/voice-ai-integration/references/conversational-ai/convoai-restapi/index.mdx`."
+      fail_signals:
+        - "The accepted trace never consults the shared credentials/auth guidance."
+        - "The accepted trace never consults any ConvoAI-specific auth source."
+      evidence_scope:
+        - "trace"
+    - description: "The final answer should make RTC Token the default recommendation."
+      pass_criteria:
+        - "Recommends RTC Token as the default ConvoAI authentication path"
+        - "Presents Basic Auth only as a fallback or special-case option"
+      fail_signals:
+        - "Presents Basic Auth as the default recommendation"
+        - "Fails to distinguish the preferred default from the fallback"
+      evidence_scope:
+        - "final_answer"
+        - "trace"
 
   forbidden: []
 
 notes:
   why_it_matters: "Auth guidance is security-sensitive and the default recommendation should follow the supported token path."
   likely_fix_files:
+    - ".agents/skills/voice-ai-integration/references/general/credentials-and-auth.md"
     - ".agents/skills/voice-ai-integration/references/conversational-ai/README.md"
-    - ".agents/skills/voice-ai-integration/references/conversational-ai/convoai-restapi.md"
+    - ".agents/skills/voice-ai-integration/references/conversational-ai/convoai-restapi/index.mdx"
