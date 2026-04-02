@@ -1,11 +1,12 @@
 # Agentic Eval Protocol
 
-This repo is a proof-of-concept evaluator for `voice-ai-integration`.
+This repo is a proof-of-concept evaluator for repo-defined target skills.
+The current default target is `voice-ai-integration`.
 
 The goal is not to build a complete eval platform. The goal is to answer:
 
 1. Can a repo-defined evaluator run the same way more than once?
-2. Can it catch real problems in `voice-ai-integration`?
+2. Can it catch real problems in the selected target skill?
 3. Can the output guide concrete edits to the target skill?
 
 ## Source Of Truth
@@ -21,14 +22,15 @@ If a case cannot be judged reliably from the available evidence, mark it `blocke
 Every run should follow this order:
 
 1. Read this file.
-2. Read `targets/voice-ai-integration/target.yaml`.
-3. Read the selected suite files.
-4. Create `runs/<run_id>/manifest.json`.
-5. Create a parent temp directory for isolated per-case workspaces.
-6. Execute each case in its own fresh isolated workspace.
-7. Save a readable `transcript.md`.
-8. Write one `case-results/<case_id>.json` file per case.
-9. Write `report.md`.
+2. Resolve `target_id`. If none is provided, use the repo default target.
+3. Read `targets/<target_id>/target.yaml`.
+4. Read the selected suite files.
+5. Create `runs/<run_id>/manifest.json`.
+6. Create a parent temp directory for isolated per-case workspaces.
+7. Execute each case in its own fresh isolated workspace.
+8. Save a readable `transcript.md`.
+9. Write one `case-results/<case_id>.json` file per case.
+10. Write `report.md`.
 
 ## Required Run Artifacts
 
@@ -132,7 +134,7 @@ Each `case-results/<case_id>.json` file must contain:
     }
   ],
   "notes": ["Short explanation."],
-  "suggested_fix_files": [".agents/skills/voice-ai-integration/SKILL.md"]
+  "suggested_fix_files": [".agents/skills/<target_id>/SKILL.md"]
 }
 ```
 
