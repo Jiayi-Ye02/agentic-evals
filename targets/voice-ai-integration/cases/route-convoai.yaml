@@ -7,26 +7,25 @@ input:
 
 setup:
   docs_index_present: false
-  network_mode: "restricted"
 
 assert:
   summary: "A real-time AI voice bot request should route into the ConvoAI-first path and enter the ConvoAI module rather than the RTC-only path."
   required:
-    - description: "The accepted trace should show that the ConvoAI module was consulted for the request."
+    - description: "The accepted session evidence should show that the ConvoAI module was consulted for the request."
       pass_criteria:
-        - "The accepted trace includes `.agents/skills/voice-ai-integration/references/conversational-ai/README.md`."
+        - "The accepted session evidence shows consultation of `.agents/skills/voice-ai-integration/references/conversational-ai/README.md`."
       fail_signals:
-        - "The accepted trace never shows a read of `.agents/skills/voice-ai-integration/references/conversational-ai/README.md`"
+        - "The accepted session evidence never shows consultation of `.agents/skills/voice-ai-integration/references/conversational-ai/README.md`"
       evidence_scope:
-        - "trace"
+        - "accepted-session.jsonl"
     - description: "The final answer should clearly treat the request as a ConvoAI use case rather than an RTC-only flow."
       pass_criteria:
         - "Treats the request as a real-time AI voice bot that belongs on the ConvoAI path"
       fail_signals:
         - "Routes the request toward RTC-primary or another non-ConvoAI primary path"
       evidence_scope:
-        - "final_answer"
-        - "trace"
+        - "final-answer.txt"
+        - "accepted-session.jsonl"
 
   forbidden: []
 

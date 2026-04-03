@@ -7,26 +7,25 @@ input:
 
 setup:
   docs_index_present: false
-  network_mode: "restricted"
 
 assert:
   summary: "A non-AI human video-call request should stay on the RTC path and avoid the ConvoAI-specific quickstart flow."
   required:
-    - description: "The accepted trace should show that the RTC module guidance was consulted."
+    - description: "The accepted session evidence should show that the RTC module guidance was consulted."
       pass_criteria:
-        - "TRACE_FILES_READ includes `.agents/skills/voice-ai-integration/references/rtc/README.md`"
+        - "The accepted session evidence shows consultation of `.agents/skills/voice-ai-integration/references/rtc/README.md`."
       fail_signals:
-        - "The accepted trace never shows a read of `.agents/skills/voice-ai-integration/references/rtc/README.md`"
+        - "The accepted session evidence never shows consultation of `.agents/skills/voice-ai-integration/references/rtc/README.md`"
       evidence_scope:
-        - "trace"
+        - "accepted-session.jsonl"
     - description: "The final answer should clearly commit to the RTC-primary route."
       pass_criteria:
         - "Treats the request as an ordinary RTC video-call implementation rather than an AI-agent or ConvoAI path"
       fail_signals:
         - "Routes the request toward ConvoAI-primary or another AI-agent-specific path"
       evidence_scope:
-        - "final_answer"
-        - "trace"
+        - "final-answer.txt"
+        - "accepted-session.jsonl"
     - description: "The final answer should stay on the RTC path and avoid ConvoAI-specific quickstart or AI-agent gating."
       pass_criteria:
         - "Keeps the request on an ordinary RTC implementation path"
@@ -35,7 +34,7 @@ assert:
         - "Routes the request into ConvoAI-specific handling"
         - "Starts asking ConvoAI checklist questions such as LLM, TTS, or ASR choices for this clearly non-AI request"
       evidence_scope:
-        - "final_answer"
+        - "final-answer.txt"
 
   forbidden: []
 

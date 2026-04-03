@@ -7,20 +7,19 @@ input:
 
 setup:
   docs_index_present: false
-  network_mode: "restricted"
 
 assert:
   summary: "For a first-time ConvoAI request with no proven baseline, the assistant should enter quickstart mode, read only the phase-1 guidance, and start with a brief intro plus technical-path confirmation."
   required:
-    - description: "The accepted trace should show that the ConvoAI routing guide and quickstart state machine were consulted."
+    - description: "The accepted session evidence should show that the ConvoAI routing guide and quickstart state machine were consulted."
       pass_criteria:
-        - "The accepted trace includes `.agents/skills/voice-ai-integration/references/conversational-ai/README.md`."
-        - "The accepted trace includes `.agents/skills/voice-ai-integration/references/conversational-ai/quickstart.md`."
+        - "The accepted session evidence shows consultation of `.agents/skills/voice-ai-integration/references/conversational-ai/README.md`."
+        - "The accepted session evidence shows consultation of `.agents/skills/voice-ai-integration/references/conversational-ai/quickstart.md`."
       fail_signals:
-        - "The accepted trace never consults the ConvoAI routing guide."
-        - "The accepted trace never consults the quickstart state machine."
+        - "The accepted session evidence never consults the ConvoAI routing guide."
+        - "The accepted session evidence never consults the quickstart state machine."
       evidence_scope:
-        - "trace"
+        - "accepted-session.jsonl"
     - description: "The first answer should give a short plain-language ConvoAI intro and then ask for the technical path."
       pass_criteria:
         - "The answer briefly explains what ConvoAI is or how the AI voice-agent flow works in plain language."
@@ -29,8 +28,8 @@ assert:
         - "The answer starts with provider, credential, or implementation-detail questions before the technical-path choice."
         - "The answer jumps into project structure, framework choices, or code planning before the technical-path choice is resolved."
       evidence_scope:
-        - "final_answer"
-        - "trace"
+        - "final-answer.txt"
+        - "accepted-session.jsonl"
 
   forbidden: []
 

@@ -7,32 +7,31 @@ input:
 
 setup:
   docs_index_present: false
-  network_mode: "restricted"
 
 assert:
   summary: "When the docs index is missing, the assistant should attempt Step 0 bootstrap before moving into routing or intake."
   required:
-    - description: "The accepted trace should show that the top-level skill instructions defining Step 0 were consulted."
+    - description: "The accepted session evidence should show that the top-level skill instructions defining Step 0 were consulted."
       pass_criteria:
-        - "TRACE_FILES_READ includes `.agents/skills/voice-ai-integration/SKILL.md`"
+        - "The accepted session evidence shows consultation of `.agents/skills/voice-ai-integration/SKILL.md`."
       fail_signals:
-        - "The accepted trace never shows a read of `.agents/skills/voice-ai-integration/SKILL.md`"
+        - "The accepted session evidence never shows consultation of `.agents/skills/voice-ai-integration/SKILL.md`"
       evidence_scope:
-        - "trace"
-    - description: "The accepted trace should show that the docs bootstrap step was attempted."
+        - "accepted-session.jsonl"
+    - description: "The accepted session evidence should show that the docs bootstrap step was attempted."
       pass_criteria:
-        - "The accepted trace shows an attempt to run `fetch-docs.sh` or an equivalent Step 0 bootstrap action."
+        - "The accepted session evidence shows a command invoking `fetch-docs.sh` or an equivalent Step 0 bootstrap action."
       fail_signals:
-        - "The accepted trace shows no docs bootstrap attempt"
+        - "The accepted session evidence shows no docs bootstrap attempt"
       evidence_scope:
-        - "trace"
-    - description: "The accepted trace should show that bootstrap happened before any product-module reference guidance was consulted."
+        - "accepted-session.jsonl"
+    - description: "The accepted session evidence should show that bootstrap happened before any product-module reference guidance was consulted."
       pass_criteria:
-        - "The trace shows the docs bootstrap attempt before any product-module README or reference file is consulted."
+        - "The accepted session evidence shows the docs bootstrap attempt before any product-module README or reference file is consulted."
       fail_signals:
-        - "The trace shows product-module guidance consulted before the docs bootstrap attempt"
+        - "The accepted session evidence shows product-module guidance consulted before the docs bootstrap attempt"
       evidence_scope:
-        - "trace"
+        - "accepted-session.jsonl"
 
   forbidden: []
 

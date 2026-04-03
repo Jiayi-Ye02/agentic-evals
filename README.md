@@ -2,7 +2,6 @@
 
 `agentic-evals` is a target-driven evaluation repo for testing one skill at a time.
 
-
 This repo defines:
 
 - the evaluator contract in `AGENT.md`
@@ -16,6 +15,8 @@ This repo defines:
 agentic-evals/
 ├── AGENT.md
 ├── README.md
+├── docs/
+│   └── session-evidence.md
 ├── targets/
 │   └── <target_id>/
 │       ├── target.yaml
@@ -28,7 +29,8 @@ agentic-evals/
 
 - `README.md`: human-facing repo guide for understanding and editing the test set.
 - `AGENT.md`: canonical evaluator-facing repo contract.
-- `.agents/skills/skill-eval/SKILL.md`: operational instructions for the `skill-eval` evaluator skill, not the source of truth for repo assertions or statuses.
+- `docs/session-evidence.md`: canonical contract for local Codex session evidence and child-session location.
+- `skill-eval/SKILL.md`: operational instructions for the `skill-eval` evaluator skill, not the source of truth for repo assertions or statuses.
 
 ## How To Read This Repo
 
@@ -58,7 +60,8 @@ Keep cases focused and behavior-first:
 - Keep `input.user_prompt` realistic and `setup` minimal.
 - Write assertions as natural-language rubric entries.
 - Use `assert.summary` for the case-level behavior being protected.
-- Use `evidence_scope` to point the evaluator to `trace`, `final_answer`, or both.
+- Use `evidence_scope` to point the evaluator to artifact filenames such as `accepted-session.jsonl`, `final-answer.txt`, or both.
+- Write trace-facing assertions against accepted session evidence semantics such as consultation of a file, an observed command invocation, ordering, and the final answer.
 - Make sure any setup can be reproduced inside an isolated case workspace.
 
 Each case should include:
@@ -84,18 +87,17 @@ input:
 
 setup:
   docs_index_present: true
-  network_mode: "restricted"
 
 assert:
   summary: "The assistant should consult the skill and then follow the supported path."
   required:
-    - description: "The accepted trace should show that the top-level skill instructions were consulted before answering."
+    - description: "The accepted session evidence should show that the top-level skill instructions were consulted before answering."
       pass_criteria:
-        - "TRACE_FILES_READ includes `.agents/skills/<target_id>/SKILL.md`"
+        - "The accepted session evidence shows consultation of `.agents/skills/<target_id>/SKILL.md` before the answer."
       fail_signals:
-        - "The accepted trace never shows a read of `.agents/skills/<target_id>/SKILL.md`"
+        - "The accepted session evidence never shows consultation of `.agents/skills/<target_id>/SKILL.md`"
       evidence_scope:
-        - "trace"
+        - "accepted-session.jsonl"
   forbidden: []
 
 notes:
@@ -121,15 +123,16 @@ TARGET_ID=voice-ai-integration ruby -e 'require "yaml"; target_id = ENV.fetch("T
 ## Maintenance
 
 - Keep suites thematic and readable.
-- Prefer concrete trace evidence over vague review criteria.
+- Prefer concrete session evidence over vague review criteria.
 - Audit for YAML parse errors, duplicate suite references, and unreferenced cases whenever the test set changes.
 - Refresh affected suites and cases when the target workflow changes.
 - Remove or rewrite stale cases that no longer reflect the supported path.
 
 ## Key Paths
 
-- `.agents/skills/skill-eval/SKILL.md`
+- `skill-eval/SKILL.md`
 - `AGENT.md`
+- `docs/session-evidence.md`
 - `targets/<target_id>/target.yaml`
 - `targets/<target_id>/suites/`
 - `targets/<target_id>/cases/`

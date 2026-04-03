@@ -34,9 +34,11 @@ Every evaluator that uses this repo should follow this order:
 6. Create `runs/<run_id>/manifest.json`.
 7. Create a parent temp directory for isolated per-case workspaces.
 8. Execute each case in its own fresh isolated workspace.
-9. Save a readable `transcript.md`.
-10. Write one `case-results/<case_id>.json` file per case.
-11. Write `report.md`.
+9. Locate the accepted fresh-agent child session for each case.
+10. Save the accepted child session for each case.
+11. Render a readable `transcript.md` from the accepted child sessions.
+12. Write one `case-results/<case_id>.json` file per case.
+13. Write `report.md`.
 
 Do not start execution before the case set is known.
 
@@ -47,7 +49,7 @@ agentic-evals/
 ├── AGENT.md
 ├── README.md
 ├── docs/
-│   └── quickstart.md
+│   └── session-evidence.md
 ├── targets/
 │   └── <target_id>/
 │       ├── target.yaml
@@ -62,6 +64,7 @@ agentic-evals/
 - `targets/<target_id>/suites/` groups active cases into runnable suites.
 - `targets/<target_id>/cases/` holds active cases.
 - `targets/<target_id>/deferred-cases/` holds backlog cases that are intentionally not active.
+- `docs/session-evidence.md` defines the local session evidence model.
 
 Deferred cases are not part of the runnable active suite set unless a human explicitly promotes them.
 
@@ -72,6 +75,11 @@ Each run must create:
 ```text
 runs/<run_id>/
 ├── manifest.json
+├── case-artifacts/
+│   ├── <case_id>/
+│   │   ├── accepted-session.jsonl
+│   │   └── final-answer.txt
+│   └── ...
 ├── transcript.md
 ├── case-results/
 │   ├── <case_id>.json
@@ -89,6 +97,7 @@ runs/<run_id>/
 - `model` if available
 - `workspace_mode` with value `isolated-per-case`
 - `case_workspace_root` for the parent temp directory used for per-case workspaces
+- `evidence_mode` with value `codex-local-session-store`
 - `notes` if the environment is unusual
 
 Each case result must record that case's accepted `workspace_root`.
@@ -111,14 +120,13 @@ Only use statuses allowed by `targets/<target_id>/target.yaml`.
 
 Preferred evidence:
 
-- accepted fresh-agent file reads
-- accepted fresh-agent commands executed
-- ordered accepted fresh-agent file and command traces
-- concrete accepted fresh-agent outputs quoted in `transcript.md`
+- the accepted fresh-agent child session JSONL from the local Codex session store
+- the accepted final answer extracted from that child session
+- local thread linkage from `state_5.sqlite` only to find and disambiguate the child session
 
-Prefer accepted fresh-agent traces over evaluator-side inference.
-
-Do not mark a case `pass` from a generic assistant claim such as "I checked the skill" unless the transcript or tool trace shows what was actually read or run.
+The accepted child session JSONL is the authoritative local evidence source for the current framework.
+`transcript.md` is a derived human-readable view of that accepted session evidence.
+Do not mark a case `pass` from a generic assistant claim such as "I checked the skill" unless the accepted session evidence shows what was actually read or run.
 
 Static reads by the evaluator are allowed for:
 
@@ -128,6 +136,12 @@ Static reads by the evaluator are allowed for:
 - mapping failures to likely fix files
 
 Static reads by the evaluator are not enough on their own to mark a dynamic case `pass` when a fresh-agent run was available.
+
+If the local session store is unavailable, if the accepted child session cannot be located, or if the session evidence is too coarse to support the assertion, do not judge the case as `pass`.
+Mark the case `blocked` with:
+
+- `environment` when the local evidence source is unavailable
+- `insufficient-evidence` when the session exists but cannot support a reliable judgment
 
 Invalid attempts can explain `notes`, but they cannot satisfy assertions or justify a `pass`.
 
@@ -142,6 +156,9 @@ Rules:
 - Apply case `setup` mutations only inside that case workspace.
 - No case may observe filesystem mutations left by a previous case unless the current case setup explicitly recreates them.
 - Preserve the accepted case workspace at least until `case-results/<case_id>.json` and `report.md` are written. Cleanup after reporting is optional.
+- Judge isolation from observed session evidence, not from fresh-agent self-reporting.
+- Treat any observed access outside the case workspace as invalid evidence for that attempt.
+- If a required path or cwd cannot be observed reliably, that evidence cannot justify a `pass`.
 
 ## Assertion Contract
 
@@ -149,10 +166,10 @@ Cases may include:
 
 - optional `assert.summary` as a short human-readable description of the protected behavior
 - optional per-assertion `description` to explain the intent of that single check
-- optional per-assertion `evidence_scope` to hint whether the evaluator should rely mainly on `trace`, `final_answer`, or both
+- optional per-assertion `evidence_scope` to hint which accepted artifact file the evaluator should rely on, such as `accepted-session.jsonl` or `final-answer.txt`
 
 These human-readable fields are the assertion contract.
-Older file-read, command, ordering, and route requirements should be rewritten into this natural-language form rather than kept as separate machine-oriented types.
+Older requirements should be written in terms of consultation, observed commands, ordering, and final answers, not idealized runtime-native events.
 
 ### Assertion Entry
 
@@ -165,9 +182,9 @@ Fields:
 - optional `fail_signals`
 - optional `evidence_scope`
 
-The evaluator must judge the check from the accepted trace and final answer.
+The evaluator must judge the check from the accepted session evidence and the accepted final answer.
 Pass only when the available evidence satisfies the pass criteria and does not show any fail signal.
-If the transcript does not support a reliable answer, mark the assertion `blocked`.
+If the accepted session evidence does not support a reliable answer, mark the assertion `blocked`.
 
 ## Case Result Shape
 
@@ -177,19 +194,26 @@ Each `case-results/<case_id>.json` file must contain:
 {
   "case_id": "example-case",
   "workspace_root": "/tmp/skill-eval/run-123/example-case",
+  "thread_id": "019d41f7-25c8-7023-875d-e092d2c253ed",
+  "session_path": "/Users/name/.codex/sessions/...jsonl",
   "status": "pass",
   "blocked_reason": null,
   "assertions": [
     {
       "summary": "Consulted the top-level skill instructions before answering.",
       "status": "pass",
-      "evidence": ["transcript.md#L12"]
+      "evidence": [
+        "case-artifacts/example-case/accepted-session.jsonl#L12"
+      ]
     }
   ],
   "notes": ["Short explanation."],
   "suggested_fix_files": [".agents/skills/<target_id>/SKILL.md"]
 }
 ```
+
+Prefer `accepted-session.jsonl#L<line>` references in `evidence`.
+Use `transcript.md#L<line>` only as a readability aid.
 
 ## Report Shape
 

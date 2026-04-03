@@ -7,28 +7,27 @@ input:
 
 setup:
   docs_index_present: false
-  network_mode: "restricted"
 
 assert:
   summary: "For unresolved quickstart or integration requests, the assistant should stay within the phase-1 ConvoAI docs and avoid phase-2 implementation files until the quickstart gates are resolved."
   required:
-    - description: "The accepted trace should show that the ConvoAI routing guide and quickstart state machine were consulted."
+    - description: "The accepted session evidence should show that the ConvoAI routing guide and quickstart state machine were consulted."
       pass_criteria:
-        - "The accepted trace includes `.agents/skills/voice-ai-integration/references/conversational-ai/README.md`."
-        - "The accepted trace includes `.agents/skills/voice-ai-integration/references/conversational-ai/quickstart.md`."
+        - "The accepted session evidence shows consultation of `.agents/skills/voice-ai-integration/references/conversational-ai/README.md`."
+        - "The accepted session evidence shows consultation of `.agents/skills/voice-ai-integration/references/conversational-ai/quickstart.md`."
       fail_signals:
-        - "The accepted trace never consults the ConvoAI routing guide."
-        - "The accepted trace never consults the quickstart state machine."
+        - "The accepted session evidence never consults the ConvoAI routing guide."
+        - "The accepted session evidence never consults the quickstart state machine."
       evidence_scope:
-        - "trace"
-    - description: "Before the user resolves the quickstart gates, the accepted trace should stay out of phase-2 ConvoAI implementation docs."
+        - "accepted-session.jsonl"
+    - description: "Before the user resolves the quickstart gates, the accepted session evidence should stay out of phase-2 ConvoAI implementation docs."
       pass_criteria:
-        - "Before the first user reply, the accepted trace stays within the ConvoAI phase-1 files needed for routing and quickstart gating."
+        - "Before the first user reply, the accepted session evidence stays within the ConvoAI phase-1 files needed for routing and quickstart gating."
       fail_signals:
-        - "The accepted trace reads `sample-repos.md`, `providers.md`, `generation-rules.md`, `pipeline-integration.md`, or any `convoai-restapi/*` file before the quickstart gates are resolved."
-        - "The accepted trace performs sample inspection or repo-clone preparation before the quickstart gates are resolved."
+        - "The accepted session evidence shows consultation of `sample-repos.md`, `providers.md`, `generation-rules.md`, `pipeline-integration.md`, or any `convoai-restapi/*` file before the quickstart gates are resolved."
+        - "The accepted session evidence performs sample inspection or repo-clone preparation before the quickstart gates are resolved."
       evidence_scope:
-        - "trace"
+        - "accepted-session.jsonl"
 
   forbidden: []
 
