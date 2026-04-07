@@ -1,0 +1,6 @@
+suite_id: "bootstrap"
+title: "Skill bootstrap and Step 0 structural checks"
+
+cases:
+  - "targets/voice-ai-integration/cases/bootstrap/bootstrap-missing-docs-index.yaml"
+  - "targets/voice-ai-integration/cases/bootstrap/bootstrap-failed-no-fake-success.yaml"

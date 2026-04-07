@@ -1,0 +1,33 @@
+case_id: "reads-skill-md-first"
+title: "The top-level SKILL.md must be consulted before any product reference"
+
+input:
+  user_prompt: "I want to build a video call app with Agora."
+  locale: "en-US"
+
+setup: {}
+
+assert:
+  summary: "The assistant should read the top-level SKILL.md to understand routing rules before diving into any product-specific reference file."
+  required:
+    - description: "The accepted session evidence should show that the top-level SKILL.md was consulted."
+      pass_criteria:
+        - "The accepted session evidence shows consultation of `.agents/skills/agora/SKILL.md`."
+      fail_signals:
+        - "The accepted session evidence never shows consultation of `.agents/skills/agora/SKILL.md`."
+      evidence_scope:
+        - "accepted-session.jsonl"
+    - description: "SKILL.md should be consulted before any product-specific reference file."
+      pass_criteria:
+        - "The accepted session evidence shows `.agents/skills/agora/SKILL.md` was read before any file under `.agents/skills/agora/references/`."
+      fail_signals:
+        - "A product reference file under `.agents/skills/agora/references/` was consulted before `.agents/skills/agora/SKILL.md`."
+      evidence_scope:
+        - "accepted-session.jsonl"
+
+  forbidden: []
+
+notes:
+  why_it_matters: "SKILL.md defines routing rules and the product landscape. Skipping it risks wrong routing."
+  likely_fix_files:
+    - ".agents/skills/agora/SKILL.md"

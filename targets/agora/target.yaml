@@ -1,17 +1,15 @@
-target_id: "voice-ai-integration"
-entry_skill: ".agents/skills/voice-ai-integration/SKILL.md"
+target_id: "agora"
+entry_skill: ".agents/skills/agora/SKILL.md"
 
 roots:
-  - ".agents/skills/voice-ai-integration/references"
-  - ".agents/skills/voice-ai-integration/scripts"
+  - ".agents/skills/agora/references"
+  - ".agents/skills/agora/intake"
 
 default_suites:
   - "bootstrap"
   - "routing"
   - "workflow"
 
-# Suite definitions live alongside their cases:
-#   cases/<suite_id>/suite.yaml
 suite_root: "cases"
 
 artifact_contract:

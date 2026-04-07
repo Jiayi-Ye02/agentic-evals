@@ -1,0 +1,42 @@
+case_id: "rtc-rtm-init-order"
+title: "RTC+RTM integration should follow the documented initialization order"
+
+input:
+  user_prompt: "I'm building a video call app with Agora RTC and RTM for chat. Show me the initialization code for Web."
+  locale: "en-US"
+
+setup: {}
+
+assert:
+  summary: "When combining RTC and RTM, the code should follow the documented initialization order from integration-patterns.md."
+  required:
+    - description: "The accepted session evidence should show that the integration patterns reference was consulted."
+      pass_criteria:
+        - "The accepted session evidence shows consultation of `.agents/skills/agora/references/integration-patterns.md`."
+      fail_signals:
+        - "The accepted session evidence never consults `.agents/skills/agora/references/integration-patterns.md`."
+      evidence_scope:
+        - "accepted-session.jsonl"
+    - description: "The generated code should register RTC event handlers before joining the channel."
+      pass_criteria:
+        - "The code registers event handlers (e.g., `client.on('user-published', ...)`) before calling `client.join()`."
+      fail_signals:
+        - "The code calls `client.join()` before registering event handlers."
+      evidence_scope:
+        - "final-answer.txt"
+    - description: "The code should use String(rtcUid) as the RTM user ID or explain the UID mapping convention."
+      pass_criteria:
+        - "The code uses `String(uid)` or equivalent for the RTM user ID, or explicitly explains the UID type difference between RTC (number) and RTM (string)."
+      fail_signals:
+        - "The code passes a numeric UID directly to RTM login without string conversion and without mentioning the type difference."
+      evidence_scope:
+        - "final-answer.txt"
+
+  forbidden: []
+
+notes:
+  why_it_matters: "Wrong init order causes missed events. UID type mismatch between RTC and RTM causes silent failures."
+  likely_fix_files:
+    - ".agents/skills/agora/references/integration-patterns.md"
+    - ".agents/skills/agora/references/rtc/README.md"
+    - ".agents/skills/agora/references/rtm/README.md"

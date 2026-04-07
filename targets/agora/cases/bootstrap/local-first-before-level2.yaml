@@ -1,0 +1,34 @@
+case_id: "local-first-before-level2"
+title: "Local bundled references must be checked before Level 2 live doc fetch"
+
+input:
+  user_prompt: "How do I handle token renewal in an Agora RTC Web app?"
+  locale: "en-US"
+
+setup: {}
+
+assert:
+  summary: "The doc-fetching rule requires checking bundled Level 1 references before attempting any Level 2 live doc fetch."
+  required:
+    - description: "The accepted session evidence should show that a local reference file was consulted for the topic."
+      pass_criteria:
+        - "The accepted session evidence shows consultation of at least one local file under `.agents/skills/agora/references/rtc/` or `.agents/skills/agora/references/server/`."
+      fail_signals:
+        - "The accepted session evidence never consults any local reference file relevant to RTC or tokens."
+      evidence_scope:
+        - "accepted-session.jsonl"
+    - description: "If a Level 2 fetch was attempted, it should happen after the local reference was read."
+      pass_criteria:
+        - "Either no Level 2 fetch was attempted, or the accepted session evidence shows the local reference was read before any fetch to `docs.agora.io` or `docs-md.agora.io`."
+      fail_signals:
+        - "The accepted session evidence shows a fetch to `docs.agora.io` or `docs-md.agora.io` before any local reference file was consulted."
+      evidence_scope:
+        - "accepted-session.jsonl"
+
+  forbidden: []
+
+notes:
+  why_it_matters: "The local-first rule in doc-fetching.md prevents unnecessary network calls and ensures stable bundled content is used as the baseline."
+  likely_fix_files:
+    - ".agents/skills/agora/SKILL.md"
+    - ".agents/skills/agora/references/doc-fetching.md"

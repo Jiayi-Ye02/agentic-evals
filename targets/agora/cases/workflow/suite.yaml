@@ -1,0 +1,10 @@
+suite_id: "workflow"
+title: "End-to-end in-module workflow checks"
+
+cases:
+  - "targets/agora/cases/workflow/convoai-quickstart-gating.yaml"
+  - "targets/agora/cases/workflow/convoai-no-code-before-gates.yaml"
+  - "targets/agora/cases/workflow/convoai-auth-prefers-token.yaml"
+  - "targets/agora/cases/workflow/convoai-gotchas-uid-string.yaml"
+  - "targets/agora/cases/workflow/rtc-rtm-init-order.yaml"
+  - "targets/agora/cases/workflow/convoai-e2e-first-success.yaml"

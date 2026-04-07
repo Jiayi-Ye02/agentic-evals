@@ -1,0 +1,6 @@
+suite_id: "routing"
+title: "Product-module routing decisions"
+
+cases:
+  - "targets/voice-ai-integration/cases/routing/route-convoai.yaml"
+  - "targets/voice-ai-integration/cases/routing/route-rtc.yaml"

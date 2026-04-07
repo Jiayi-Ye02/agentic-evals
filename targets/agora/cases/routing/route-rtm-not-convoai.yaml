@@ -1,0 +1,34 @@
+case_id: "route-rtm-not-convoai"
+title: "A pure chat/messaging request should route to RTM, not ConvoAI"
+
+input:
+  user_prompt: "I need to add real-time text chat and presence to my web app using Agora."
+  locale: "en-US"
+
+setup: {}
+
+assert:
+  summary: "A pure messaging/signaling request should route to RTM, not to ConvoAI or RTC."
+  required:
+    - description: "The accepted session evidence should show that the RTM module was consulted."
+      pass_criteria:
+        - "The accepted session evidence shows consultation of `.agents/skills/agora/references/rtm/README.md`."
+      fail_signals:
+        - "The accepted session evidence never consults `.agents/skills/agora/references/rtm/README.md`."
+      evidence_scope:
+        - "accepted-session.jsonl"
+    - description: "The final answer should treat this as an RTM use case."
+      pass_criteria:
+        - "The answer focuses on RTM/Signaling SDK for text chat and presence."
+      fail_signals:
+        - "The answer routes the request to ConvoAI or treats it as a voice AI use case."
+      evidence_scope:
+        - "final-answer.txt"
+
+  forbidden: []
+
+notes:
+  why_it_matters: "RTM and ConvoAI are independent products. Chat/messaging requests should not be confused with AI voice agent requests."
+  likely_fix_files:
+    - ".agents/skills/agora/SKILL.md"
+    - ".agents/skills/agora/references/rtm/README.md"

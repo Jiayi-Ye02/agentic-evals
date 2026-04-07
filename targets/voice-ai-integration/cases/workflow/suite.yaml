@@ -1,0 +1,7 @@
+suite_id: "workflow"
+title: "End-to-end in-module workflow checks"
+
+cases:
+  - "targets/voice-ai-integration/cases/workflow/convoai-phase1-only-before-gates.yaml"
+  - "targets/voice-ai-integration/cases/workflow/convoai-quickstart-first-turn.yaml"
+  - "targets/voice-ai-integration/cases/workflow/auth-prefers-rtc-token.yaml"
