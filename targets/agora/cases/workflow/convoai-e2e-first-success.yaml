@@ -25,7 +25,7 @@ assert:
         - "Any credential is hardcoded as a literal string in the source code."
         - "One or more required env vars are missing from the code."
       evidence_scope:
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
         - "final-answer.txt"
     - description: "The accepted session evidence should show that a dev server was started."
       pass_criteria:
@@ -33,14 +33,14 @@ assert:
       fail_signals:
         - "No dev server start command is observed in the accepted session evidence."
       evidence_scope:
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
     - description: "The accepted session evidence should show automated verification of the running demo."
       pass_criteria:
         - "The accepted session evidence shows an automated attempt to verify the demo works, such as browser automation (Playwright, Puppeteer), curl/fetch to the dev server, or a test script that interacts with the running page."
       fail_signals:
         - "The agent only generates code but never attempts to verify the running demo."
       evidence_scope:
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
     - description: "The agent should report a clear test conclusion based on observed results."
       pass_criteria:
         - "The final answer includes a clear conclusion about whether the demo ran successfully or encountered errors."
@@ -50,14 +50,14 @@ assert:
         - "The agent claims success without evidence of actually running the demo."
       evidence_scope:
         - "final-answer.txt"
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
     - description: "The ConvoAI /join payload must use correct types per documented gotchas."
       pass_criteria:
         - "agent_rtc_uid is passed as a string (e.g., \"0\" or the AGENT_UID env var as string), not an integer."
       fail_signals:
         - "agent_rtc_uid is passed as an integer literal (e.g., 0 instead of \"0\")."
       evidence_scope:
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
         - "final-answer.txt"
 
   forbidden: []

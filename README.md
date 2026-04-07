@@ -9,6 +9,8 @@ This repo defines:
 - the active suites and cases under `targets/<target_id>/`
 - the run artifacts written to `runs/<run_id>/`
 
+The repo contract is runtime-neutral: evaluators may execute it in Codex or OpenClaw as long as they honor the artifact contract and record the chosen runtime in `manifest.json.evidence_mode`.
+
 ## Layout
 
 ```text
@@ -31,7 +33,7 @@ agentic-evals/
 
 - `README.md`: human-facing repo guide for understanding and editing the test set.
 - `AGENT.md`: canonical evaluator-facing repo contract.
-- `docs/session-evidence.md`: canonical contract for local Codex session evidence and child-session location.
+- `docs/session-evidence.md`: canonical contract for dual-mode session evidence and child-session location.
 - `skill-eval/SKILL.md`: operational instructions for the `skill-eval` evaluator skill, not the source of truth for repo assertions or statuses.
 
 ## How To Read This Repo
@@ -62,7 +64,7 @@ Keep cases focused and behavior-first:
 - Keep `input.user_prompt` realistic and `setup` minimal.
 - Write assertions as natural-language rubric entries.
 - Use `assert.summary` for the case-level behavior being protected.
-- Use `evidence_scope` to point the evaluator to artifact filenames such as `accepted-session.jsonl`, `final-answer.txt`, or both.
+- Use `evidence_scope` to point the evaluator to artifact filenames such as `accepted-session.json`, `final-answer.txt`, or both.
 - Write trace-facing assertions against accepted session evidence semantics such as consultation of a file, an observed command invocation, ordering, and the final answer.
 - Make sure any setup can be reproduced inside an isolated case workspace.
 
@@ -99,7 +101,7 @@ assert:
       fail_signals:
         - "The accepted session evidence never shows consultation of `.agents/skills/<target_id>/SKILL.md`"
       evidence_scope:
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
   forbidden: []
 
 notes:

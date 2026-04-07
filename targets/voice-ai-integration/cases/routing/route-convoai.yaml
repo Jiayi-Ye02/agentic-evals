@@ -17,7 +17,7 @@ assert:
       fail_signals:
         - "The accepted session evidence never shows consultation of `.agents/skills/voice-ai-integration/references/conversational-ai/README.md`"
       evidence_scope:
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
     - description: "The final answer should clearly treat the request as a ConvoAI use case rather than an RTC-only flow."
       pass_criteria:
         - "Treats the request as a real-time AI voice bot that belongs on the ConvoAI path"
@@ -25,7 +25,7 @@ assert:
         - "Routes the request toward RTC-primary or another non-ConvoAI primary path"
       evidence_scope:
         - "final-answer.txt"
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
 
   forbidden: []
 

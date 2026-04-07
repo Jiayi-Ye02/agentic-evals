@@ -19,7 +19,7 @@ assert:
         - "The accepted session evidence never consults the ConvoAI routing guide."
         - "The accepted session evidence never consults the quickstart state machine."
       evidence_scope:
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
     - description: "The first answer should give a short plain-language ConvoAI intro and then ask for the technical path."
       pass_criteria:
         - "The answer briefly explains what ConvoAI is or how the AI voice-agent flow works in plain language."
@@ -29,7 +29,7 @@ assert:
         - "The answer jumps into project structure, framework choices, or code planning before the technical-path choice is resolved."
       evidence_scope:
         - "final-answer.txt"
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
 
   forbidden: []
 

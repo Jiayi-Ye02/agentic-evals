@@ -16,7 +16,7 @@ assert:
       fail_signals:
         - "The accepted session evidence never consults any ConvoAI auth reference."
       evidence_scope:
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
     - description: "The final answer should recommend token auth as the default."
       pass_criteria:
         - "Recommends Agora token auth (`agora token=`) as the default for new ConvoAI REST API integrations."

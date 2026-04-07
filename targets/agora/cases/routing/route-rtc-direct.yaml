@@ -16,14 +16,14 @@ assert:
       fail_signals:
         - "The accepted session evidence never consults `.agents/skills/agora/references/rtc/README.md`."
       evidence_scope:
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
     - description: "The intake skill should NOT be loaded for a clear RTC request."
       pass_criteria:
         - "The accepted session evidence does not show consultation of `.agents/skills/agora/intake/SKILL.md`."
       fail_signals:
         - "The accepted session evidence shows consultation of `.agents/skills/agora/intake/SKILL.md` for a clearly RTC-specific request."
       evidence_scope:
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
 
   forbidden: []
 

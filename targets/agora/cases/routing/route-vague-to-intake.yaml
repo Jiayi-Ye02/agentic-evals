@@ -16,7 +16,7 @@ assert:
       fail_signals:
         - "The accepted session evidence never consults `.agents/skills/agora/intake/SKILL.md`."
       evidence_scope:
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
     - description: "The final answer should attempt to clarify the user's needs or present a product analysis rather than jumping into one product's implementation."
       pass_criteria:
         - "The answer asks clarifying questions about the user's use case, or presents a needs analysis identifying primary and supporting products."

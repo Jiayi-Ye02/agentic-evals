@@ -16,7 +16,7 @@ assert:
       fail_signals:
         - "The accepted session evidence never consults quickstarts.md."
       evidence_scope:
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
     - description: "The answer should not produce a /join payload or SDK code without first confirming the user has a working baseline."
       pass_criteria:
         - "The answer asks whether the user already has a working ConvoAI baseline before providing code."

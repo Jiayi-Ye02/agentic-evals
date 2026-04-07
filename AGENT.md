@@ -66,7 +66,7 @@ agentic-evals/
 - `targets/<target_id>/cases/<suite_id>/suite.yaml` defines a runnable suite and lists its cases.
 - `targets/<target_id>/cases/<suite_id>/<case_id>.yaml` holds active cases, co-located with their suite.
 - `targets/<target_id>/deferred-cases/` holds backlog cases that are intentionally not active.
-- `docs/session-evidence.md` defines the local session evidence model.
+- `docs/session-evidence.md` defines the dual-mode session evidence model for Codex and OpenClaw runtimes.
 
 Deferred cases are not part of the runnable active suite set unless a human explicitly promotes them.
 
@@ -79,7 +79,7 @@ runs/<run_id>/
 ├── manifest.json
 ├── case-artifacts/
 │   ├── <case_id>/
-│   │   ├── accepted-session.jsonl
+│   │   ├── accepted-session.json
 │   │   └── final-answer.txt
 │   └── ...
 ├── transcript.md
@@ -99,7 +99,9 @@ runs/<run_id>/
 - `model` if available
 - `workspace_mode` with value `isolated-per-case`
 - `case_workspace_root` for the parent temp directory used for per-case workspaces
-- `evidence_mode` with value `codex-local-session-store`
+- `evidence_mode` with one of:
+  - `codex-local-session-store`
+  - `openclaw-session-history`
 - `notes` if the environment is unusual
 
 Each case result must record that case's accepted `workspace_root`.
@@ -122,11 +124,22 @@ Only use statuses allowed by `targets/<target_id>/target.yaml`.
 
 Preferred evidence:
 
-- the accepted fresh-agent child session JSONL from the local Codex session store
+- the accepted fresh-agent child session captured from the active runtime
 - the accepted final answer extracted from that child session
-- local thread linkage from `state_5.sqlite` only to find and disambiguate the child session
+- runtime-native child-session locator metadata
 
-The accepted child session JSONL is the authoritative local evidence source for the current framework.
+Supported runtime patterns:
+
+- Codex mode:
+  - spawn with `spawn_agent`
+  - locate evidence from `~/.codex/sessions/`
+  - use `~/.codex/state_5.sqlite` only as a locator or tie-breaker when needed
+- OpenClaw mode:
+  - spawn with `sessions_spawn`
+  - retrieve evidence from `sessions_history`
+  - use returned child session keys or labels as the primary locator
+
+The accepted child session JSON is the authoritative evidence source for the current framework.
 `transcript.md` is a derived human-readable view of that accepted session evidence.
 Do not mark a case `pass` from a generic assistant claim such as "I checked the skill" unless the accepted session evidence shows what was actually read or run.
 
@@ -139,10 +152,10 @@ Static reads by the evaluator are allowed for:
 
 Static reads by the evaluator are not enough on their own to mark a dynamic case `pass` when a fresh-agent run was available.
 
-If the local session store is unavailable, if the accepted child session cannot be located, or if the session evidence is too coarse to support the assertion, do not judge the case as `pass`.
+If the runtime evidence source is unavailable, if the accepted child session cannot be retrieved, or if the session evidence is too coarse to support the assertion, do not judge the case as `pass`.
 Mark the case `blocked` with:
 
-- `environment` when the local evidence source is unavailable
+- `environment` when the runtime evidence source is unavailable
 - `insufficient-evidence` when the session exists but cannot support a reliable judgment
 
 Invalid attempts can explain `notes`, but they cannot satisfy assertions or justify a `pass`.
@@ -159,8 +172,8 @@ Rules:
 - No case may observe filesystem mutations left by a previous case unless the current case setup explicitly recreates them.
 - Preserve the accepted case workspace at least until `case-results/<case_id>.json` and `report.md` are written. Cleanup after reporting is optional.
 - Judge isolation from observed session evidence, not from fresh-agent self-reporting.
-- For Codex `spawn_agent` evidence, treat per-tool `workdir` values, resolved read/write paths, and command-derived cwd outputs as authoritative isolation signals.
-- Do not treat child `session_meta.cwd` as authoritative isolation evidence by itself, because spawned child-thread metadata may inherit the parent workspace cwd.
+- For both Codex and OpenClaw spawned-subagent evidence, treat per-tool `workdir` values, resolved read/write paths, and command-derived cwd outputs as authoritative isolation signals.
+- Do not treat top-level session cwd metadata as authoritative isolation evidence by itself, because spawned child-session metadata may inherit the parent workspace cwd.
 - Treat any observed access outside the case workspace as invalid evidence for that attempt.
 - If no reliable per-tool workdir, resolved path, or command-derived cwd can be observed, that evidence cannot justify a `pass`.
 
@@ -170,7 +183,7 @@ Cases may include:
 
 - optional `assert.summary` as a short human-readable description of the protected behavior
 - optional per-assertion `description` to explain the intent of that single check
-- optional per-assertion `evidence_scope` to hint which accepted artifact file the evaluator should rely on, such as `accepted-session.jsonl` or `final-answer.txt`
+- optional per-assertion `evidence_scope` to hint which accepted artifact file the evaluator should rely on, such as `accepted-session.json` or `final-answer.txt`
 
 These human-readable fields are the assertion contract.
 Older requirements should be written in terms of consultation, observed commands, ordering, and final answers, not idealized runtime-native events.
@@ -198,8 +211,8 @@ Each `case-results/<case_id>.json` file must contain:
 {
   "case_id": "example-case",
   "workspace_root": "/tmp/skill-eval/run-123/example-case",
-  "thread_id": "019d41f7-25c8-7023-875d-e092d2c253ed",
-  "session_path": "/Users/name/.codex/sessions/...jsonl",
+  "thread_id": "optional-thread-id-or-null",
+  "session_path": "openclaw-session://child-session-key or /Users/name/.codex/sessions/...jsonl",
   "status": "pass",
   "blocked_reason": null,
   "assertions": [
@@ -207,7 +220,7 @@ Each `case-results/<case_id>.json` file must contain:
       "summary": "Consulted the top-level skill instructions before answering.",
       "status": "pass",
       "evidence": [
-        "case-artifacts/example-case/accepted-session.jsonl#L12"
+        "case-artifacts/example-case/accepted-session.json#msg-12"
       ]
     }
   ],
@@ -216,7 +229,8 @@ Each `case-results/<case_id>.json` file must contain:
 }
 ```
 
-Prefer `accepted-session.jsonl#L<line>` references in `evidence`.
+Prefer `accepted-session.json#msg-<n>` references in `evidence` when the accepted session artifact is normalized into message records.
+If the runtime only exposes stable line-oriented evidence, `accepted-session.json#L<line>` is also acceptable.
 Use `transcript.md#L<line>` only as a readability aid.
 
 ## Report Shape

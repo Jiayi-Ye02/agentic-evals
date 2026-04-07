@@ -16,7 +16,7 @@ assert:
       fail_signals:
         - "The accepted session evidence never consults `.agents/skills/agora/references/integration-patterns.md`."
       evidence_scope:
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
     - description: "The generated code should register RTC event handlers before joining the channel."
       pass_criteria:
         - "The code registers event handlers (e.g., `client.on('user-published', ...)`) before calling `client.join()`."

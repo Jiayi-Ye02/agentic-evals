@@ -16,7 +16,7 @@ assert:
       fail_signals:
         - "The accepted session evidence never consults the ConvoAI README."
       evidence_scope:
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
     - description: "The generated JSON must use string type for agent_rtc_uid."
       pass_criteria:
         - "The /join payload uses `\"agent_rtc_uid\": \"0\"` (string) or another string value, not an integer."
