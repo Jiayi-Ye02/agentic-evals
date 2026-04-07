@@ -157,8 +157,10 @@ Rules:
 - No case may observe filesystem mutations left by a previous case unless the current case setup explicitly recreates them.
 - Preserve the accepted case workspace at least until `case-results/<case_id>.json` and `report.md` are written. Cleanup after reporting is optional.
 - Judge isolation from observed session evidence, not from fresh-agent self-reporting.
+- For Codex `spawn_agent` evidence, treat per-tool `workdir` values, resolved read/write paths, and command-derived cwd outputs as authoritative isolation signals.
+- Do not treat child `session_meta.cwd` as authoritative isolation evidence by itself, because spawned child-thread metadata may inherit the parent workspace cwd.
 - Treat any observed access outside the case workspace as invalid evidence for that attempt.
-- If a required path or cwd cannot be observed reliably, that evidence cannot justify a `pass`.
+- If no reliable per-tool workdir, resolved path, or command-derived cwd can be observed, that evidence cannot justify a `pass`.
 
 ## Assertion Contract
 
