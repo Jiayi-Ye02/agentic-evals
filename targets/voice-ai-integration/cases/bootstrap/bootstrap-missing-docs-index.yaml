@@ -17,21 +17,21 @@ assert:
       fail_signals:
         - "The accepted session evidence never shows consultation of `.agents/skills/voice-ai-integration/SKILL.md`"
       evidence_scope:
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
     - description: "The accepted session evidence should show that the docs bootstrap step was attempted."
       pass_criteria:
         - "The accepted session evidence shows a command invoking `fetch-docs.sh` or an equivalent Step 0 bootstrap action."
       fail_signals:
         - "The accepted session evidence shows no docs bootstrap attempt"
       evidence_scope:
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
     - description: "The accepted session evidence should show that bootstrap happened before any product-module reference guidance was consulted."
       pass_criteria:
         - "The accepted session evidence shows the docs bootstrap attempt before any product-module README or reference file is consulted."
       fail_signals:
         - "The accepted session evidence shows product-module guidance consulted before the docs bootstrap attempt"
       evidence_scope:
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
 
   forbidden: []
 

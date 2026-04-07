@@ -16,7 +16,7 @@ assert:
       fail_signals:
         - "The accepted session evidence never consults `.agents/skills/agora/references/rtm/README.md`."
       evidence_scope:
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
     - description: "The final answer should treat this as an RTM use case."
       pass_criteria:
         - "The answer focuses on RTM/Signaling SDK for text chat and presence."

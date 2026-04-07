@@ -15,7 +15,7 @@ suite_root: "cases"
 artifact_contract:
   required:
     - "manifest.json"
-    - "case-artifacts/<case_id>/accepted-session.jsonl"
+    - "case-artifacts/<case_id>/accepted-session.json"
     - "case-artifacts/<case_id>/final-answer.txt"
     - "transcript.md"
     - "case-results/<case_id>.json"

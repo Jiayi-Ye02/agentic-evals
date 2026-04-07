@@ -16,14 +16,14 @@ assert:
       fail_signals:
         - "The accepted session evidence never consults any local reference file relevant to RTC or tokens."
       evidence_scope:
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
     - description: "If a Level 2 fetch was attempted, it should happen after the local reference was read."
       pass_criteria:
         - "Either no Level 2 fetch was attempted, or the accepted session evidence shows the local reference was read before any fetch to `docs.agora.io` or `docs-md.agora.io`."
       fail_signals:
         - "The accepted session evidence shows a fetch to `docs.agora.io` or `docs-md.agora.io` before any local reference file was consulted."
       evidence_scope:
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
 
   forbidden: []
 

@@ -16,7 +16,7 @@ assert:
       fail_signals:
         - "The accepted session evidence never consults `.agents/skills/agora/references/server-gateway/README.md`."
       evidence_scope:
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
     - description: "The final answer should identify this as a Server Gateway use case."
       pass_criteria:
         - "The answer identifies Server Gateway SDK as the right product for server-side media streaming."

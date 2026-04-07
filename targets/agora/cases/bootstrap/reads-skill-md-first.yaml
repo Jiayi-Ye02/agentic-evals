@@ -16,14 +16,14 @@ assert:
       fail_signals:
         - "The accepted session evidence never shows consultation of `.agents/skills/agora/SKILL.md`."
       evidence_scope:
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
     - description: "SKILL.md should be consulted before any product-specific reference file."
       pass_criteria:
         - "The accepted session evidence shows `.agents/skills/agora/SKILL.md` was read before any file under `.agents/skills/agora/references/`."
       fail_signals:
         - "A product reference file under `.agents/skills/agora/references/` was consulted before `.agents/skills/agora/SKILL.md`."
       evidence_scope:
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
 
   forbidden: []
 

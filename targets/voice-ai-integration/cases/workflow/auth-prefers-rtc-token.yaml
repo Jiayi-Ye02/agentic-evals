@@ -19,7 +19,7 @@ assert:
         - "The accepted session evidence never consults the shared credentials/auth guidance."
         - "The accepted session evidence never consults any ConvoAI-specific auth source."
       evidence_scope:
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
     - description: "The final answer should make RTC Token the default recommendation."
       pass_criteria:
         - "Recommends RTC Token as the default ConvoAI authentication path"
@@ -29,7 +29,7 @@ assert:
         - "Fails to distinguish the preferred default from the fallback"
       evidence_scope:
         - "final-answer.txt"
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
 
   forbidden: []
 

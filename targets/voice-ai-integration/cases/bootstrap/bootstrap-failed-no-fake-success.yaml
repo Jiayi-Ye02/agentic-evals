@@ -18,7 +18,7 @@ assert:
       fail_signals:
         - "The accepted session evidence shows no docs bootstrap attempt before the answer"
       evidence_scope:
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
     - description: "The final answer should acknowledge that the latest docs could not be verified after bootstrap failed."
       pass_criteria:
         - "Explicitly indicates that the latest document contents could not be verified because bootstrap or doc fetching failed"
@@ -28,7 +28,7 @@ assert:
         - "Answers with specific latest-doc requirements as if they were confirmed despite the failed bootstrap"
       evidence_scope:
         - "final-answer.txt"
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
 
   forbidden: []
 

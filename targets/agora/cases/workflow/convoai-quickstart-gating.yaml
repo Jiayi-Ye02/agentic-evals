@@ -17,7 +17,7 @@ assert:
       fail_signals:
         - "The accepted session evidence never consults the ConvoAI quickstarts.md."
       evidence_scope:
-        - "accepted-session.jsonl"
+        - "accepted-session.json"
     - description: "The first answer should give a ConvoAI intro and ask for the baseline path, not generate code."
       pass_criteria:
         - "The answer explains what ConvoAI is or how the voice agent flow works."
