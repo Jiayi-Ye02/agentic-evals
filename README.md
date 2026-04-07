@@ -8,7 +8,6 @@ This repo defines:
 - the target under test in `targets/<target_id>/target.yaml`
 - the active suites and cases under `targets/<target_id>/`
 - the run artifacts written to `runs/<run_id>/`
-- optional A/B parent runs written to `runs/<ab_run_id>/`
 
 ## Layout
 
@@ -18,12 +17,13 @@ agentic-evals/
 ├── README.md
 ├── docs/
 │   └── session-evidence.md
-├── scripts/
 ├── targets/
 │   └── <target_id>/
 │       ├── target.yaml
-│       ├── suites/
 │       └── cases/
+│           └── <suite_id>/
+│               ├── suite.yaml
+│               └── <case_id>.yaml
 └── runs/
 ```
 
@@ -42,75 +42,19 @@ agentic-evals/
 
 Examples in this README use `voice-ai-integration` as the target id.
 
-## Run Modes
-
-`agentic-evals` now supports two evaluator-facing run modes:
-
-- `single-run`: evaluate one local target skill version
-- `ab-urls`: compare two target skill versions supplied as GitHub HTTP URLs
-
-`ab-urls` does not add new assertion semantics.
-It runs the same selected case set twice and then compares the two result sets.
-
 ## What Usually Changes
 
 Most manual edits in this repo land in one of these places:
 
 - `targets/<target_id>/target.yaml` when the default suites, entry skill, or allowed statuses change
-- `targets/<target_id>/suites/*.yaml` when grouping active cases
-- `targets/<target_id>/cases/*.yaml` when adding or refining active behavior checks
+- `targets/<target_id>/cases/<suite_id>/suite.yaml` when grouping active cases
+- `targets/<target_id>/cases/<suite_id>/<case_id>.yaml` when adding or refining active behavior checks
 
 The evaluator execution protocol lives in `AGENT.md`, not here.
 
-## A/B URL Mode
-
-In `ab-urls` mode the caller provides:
-
-- `target_id`
-- `variant_a_url`
-- `variant_b_url`
-- optional variant labels
-- optional suite ids or case ids
-
-Recommended URL shapes:
-
-- `https://github.com/<org>/<repo>/tree/<ref>/<skill-dir>`
-- `https://github.com/<org>/<repo>/blob/<ref>/<skill-dir>/SKILL.md`
-
-The evaluator should:
-
-1. parse each GitHub URL into `repo_url`, `ref`, and `subdir`
-2. prepare one isolated source workspace per variant
-3. run a normal `single-run` flow for A
-4. run a normal `single-run` flow for B
-5. compare A vs B by `case_id`
-
-Repo-side helper scripts for this mode live under `scripts/`:
-
-- `scripts/parse_github_skill_url.py`
-- `scripts/prepare_variant_source_workspace.py`
-- `scripts/init_ab_run.py`
-- `scripts/render_ab_report.py`
-
-Expected parent run layout:
-
-```text
-runs/<ab_run_id>/
-├── manifest.json
-├── variants/
-│   ├── A/
-│   │   ├── source-manifest.json
-│   │   └── run/
-│   └── B/
-│       ├── source-manifest.json
-│       └── run/
-├── comparison.json
-└── report.md
-```
-
 ## Case Authoring
 
-Add active cases under `targets/<target_id>/cases/` and reference each one from exactly one suite in `targets/<target_id>/suites/`.
+Add active cases under `targets/<target_id>/cases/<suite_id>/` alongside the `suite.yaml` that references them.
 
 Keep cases focused and behavior-first:
 
@@ -169,23 +113,13 @@ notes:
 - This command validates all case, suite, and target YAML files for the selected target by loading them with Ruby. If every file parses successfully, it prints `yaml-ok`.
 
 ```bash
-TARGET_ID=voice-ai-integration ruby -e 'require "yaml"; Dir["targets/#{ENV.fetch("TARGET_ID")}/cases/*.yaml"].sort.each { |f| YAML.load_file(f) }; Dir["targets/#{ENV.fetch("TARGET_ID")}/suites/*.yaml"].sort.each { |f| YAML.load_file(f) }; YAML.load_file("targets/#{ENV.fetch("TARGET_ID")}/target.yaml"); puts "yaml-ok"'
+TARGET_ID=voice-ai-integration ruby -e 'require "yaml"; Dir["targets/#{ENV.fetch("TARGET_ID")}/cases/*/suite.yaml"].sort.each { |f| YAML.load_file(f) }; Dir["targets/#{ENV.fetch("TARGET_ID")}/cases/**/*.yaml"].sort.reject { |f| f.end_with?("suite.yaml") }.each { |f| YAML.load_file(f) }; YAML.load_file("targets/#{ENV.fetch("TARGET_ID")}/target.yaml"); puts "yaml-ok"'
 ```
 
 - This command checks suite-to-case coverage for the selected target. It reports how many case files exist, how many suite references were found, and whether any cases are missing or referenced more than once.
 
 ```bash
-TARGET_ID=voice-ai-integration ruby -e 'require "yaml"; target_id = ENV.fetch("TARGET_ID"); refs = Dir["targets/#{target_id}/suites/*.yaml"].sort.flat_map { |f| YAML.load_file(f)["cases"] }; counts = Hash.new(0); refs.each { |r| counts[r] += 1 }; cases = Dir["targets/#{target_id}/cases/*.yaml"].sort; missing = cases.reject { |c| counts.key?(c) }; dupes = counts.select { |_, v| v > 1 }; puts "cases=#{cases.size} suite_refs=#{refs.size} dupes=#{dupes.size} missing=#{missing.size}"'
-```
-
-- This command validates that the new A/B helper scripts at least parse and load:
-
-```bash
-python3 scripts/parse_github_skill_url.py --help >/dev/null && \
-python3 scripts/prepare_variant_source_workspace.py --help >/dev/null && \
-python3 scripts/init_ab_run.py --help >/dev/null && \
-python3 scripts/render_ab_report.py --help >/dev/null && \
-echo "ab-helpers-ok"
+TARGET_ID=voice-ai-integration ruby -e 'require "yaml"; target_id = ENV.fetch("TARGET_ID"); refs = Dir["targets/#{target_id}/cases/*/suite.yaml"].sort.flat_map { |f| YAML.load_file(f)["cases"] }; counts = Hash.new(0); refs.each { |r| counts[r] += 1 }; cases = Dir["targets/#{target_id}/cases/**/*.yaml"].sort.reject { |f| f.end_with?("suite.yaml") }; missing = cases.reject { |c| counts.key?(c) }; dupes = counts.select { |_, v| v > 1 }; puts "cases=#{cases.size} suite_refs=#{refs.size} dupes=#{dupes.size} missing=#{missing.size}"'
 ```
 
 ## Maintenance
@@ -201,11 +135,7 @@ echo "ab-helpers-ok"
 - `skill-eval/SKILL.md`
 - `AGENT.md`
 - `docs/session-evidence.md`
-- `scripts/parse_github_skill_url.py`
-- `scripts/prepare_variant_source_workspace.py`
-- `scripts/init_ab_run.py`
-- `scripts/render_ab_report.py`
 - `targets/<target_id>/target.yaml`
-- `targets/<target_id>/suites/`
-- `targets/<target_id>/cases/`
+- `targets/<target_id>/cases/<suite_id>/suite.yaml`
+- `targets/<target_id>/cases/<suite_id>/<case_id>.yaml`
 - `runs/`

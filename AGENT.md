@@ -22,19 +22,6 @@ If a case cannot be judged reliably from the available evidence, mark it `blocke
 
 The current default target is `voice-ai-integration`.
 
-## Run Modes
-
-This repo supports two evaluator run modes:
-
-- `single-run`: the existing mode that evaluates one checked-out target skill version.
-- `ab-urls`: compares two target skill versions provided as GitHub HTTP URLs.
-
-`single-run` remains the default contract unless a caller explicitly selects `ab-urls`.
-
-`ab-urls` compares two variants of the same `target_id`.
-It does not change case truth, assertion semantics, or case status semantics.
-It only adds a parent comparison run that contains two normal variant runs plus a comparison report.
-
 ## Run Workflow
 
 Every evaluator that uses this repo should follow this order:
@@ -42,7 +29,7 @@ Every evaluator that uses this repo should follow this order:
 1. Read this file.
 2. Resolve `target_id`. If none is provided, use the repo default target.
 3. Read `targets/<target_id>/target.yaml`.
-4. Read the selected suite files.
+4. Read the selected suite files from `targets/<target_id>/cases/<suite_id>/suite.yaml`.
 5. Read each case file referenced by those suites, or the selected case file.
 6. Create `runs/<run_id>/manifest.json`.
 7. Create a parent temp directory for isolated per-case workspaces.
@@ -55,25 +42,6 @@ Every evaluator that uses this repo should follow this order:
 
 Do not start execution before the case set is known.
 
-For `ab-urls`:
-
-1. Read this file.
-2. Resolve `target_id`.
-3. Read `targets/<target_id>/target.yaml`.
-4. Read the selected suite files.
-5. Read each case file referenced by those suites, or the selected case file.
-6. Create `runs/<ab_run_id>/manifest.json`.
-7. Resolve `variant_a_url` and `variant_b_url`.
-8. Prepare one isolated source workspace per variant, each containing the local `agentic-evals/` repo plus the variant-specific target skill.
-9. Create `variants/A/run/` and `variants/B/run/` under the parent run.
-10. Execute a normal `single-run` flow for variant A.
-11. Execute a normal `single-run` flow for variant B.
-12. Compare `case-results/<case_id>.json` across A and B by `case_id`.
-13. Write `comparison.json` and the parent comparison `report.md`.
-
-The two variant runs must use the same selected case set.
-Do not compare different targets, different suite selections, or differently filtered case sets inside one `ab-urls` run.
-
 ## Repo Layout
 
 ```text
@@ -82,28 +50,27 @@ agentic-evals/
 ├── README.md
 ├── docs/
 │   └── session-evidence.md
-├── scripts/
 ├── targets/
 │   └── <target_id>/
 │       ├── target.yaml
-│       ├── suites/
 │       └── cases/
+│           └── <suite_id>/
+│               ├── suite.yaml
+│               └── <case_id>.yaml
 └── runs/
 ```
 
 ## Source Of Truth
 
 - `targets/<target_id>/target.yaml` defines the target under test, the entry skill, the skill roots that may be consulted, the default suites, the required run artifacts, and the allowed statuses.
-- `targets/<target_id>/suites/` groups active cases into runnable suites.
-- `targets/<target_id>/cases/` holds active cases.
+- `targets/<target_id>/cases/<suite_id>/suite.yaml` defines a runnable suite and lists its cases.
+- `targets/<target_id>/cases/<suite_id>/<case_id>.yaml` holds active cases, co-located with their suite.
 - `targets/<target_id>/deferred-cases/` holds backlog cases that are intentionally not active.
 - `docs/session-evidence.md` defines the local session evidence model.
 
 Deferred cases are not part of the runnable active suite set unless a human explicitly promotes them.
 
 ## Required Run Artifacts
-
-### `single-run`
 
 Each run must create:
 
@@ -136,59 +103,6 @@ runs/<run_id>/
 - `notes` if the environment is unusual
 
 Each case result must record that case's accepted `workspace_root`.
-
-### `ab-urls`
-
-Each A/B parent run must create:
-
-```text
-runs/<ab_run_id>/
-├── manifest.json
-├── variants/
-│   ├── A/
-│   │   ├── source-manifest.json
-│   │   └── run/
-│   │       ├── manifest.json
-│   │       ├── case-artifacts/
-│   │       ├── transcript.md
-│   │       ├── case-results/
-│   │       └── report.md
-│   └── B/
-│       ├── source-manifest.json
-│       └── run/
-│           ├── manifest.json
-│           ├── case-artifacts/
-│           ├── transcript.md
-│           ├── case-results/
-│           └── report.md
-├── comparison.json
-└── report.md
-```
-
-Parent `manifest.json` must record:
-
-- `run_mode` with value `ab-urls`
-- `run_id`
-- `target_id`
-- `suite_ids`
-- `selected_case_ids`
-- `started_at`
-- `variant_source_root`
-- `variants.<label>.source_url`
-- `variants.<label>.variant_run_dir`
-- `notes`
-
-Each variant run under `variants/<label>/run/` must satisfy the full `single-run` artifact contract.
-
-Each `source-manifest.json` must record:
-
-- the original GitHub HTTP URL
-- the normalized GitHub URL interpretation
-- the resolved repo URL
-- the resolved ref
-- the resolved skill subdir
-- the local checkout path
-- the prepared source workspace path
 
 ## Case Status
 
@@ -315,42 +229,3 @@ Use `transcript.md#L<line>` only as a readability aid.
 4. `Suggested Next Fixes`
 
 Keep `Suggested Next Fixes` to at most 3 items and point to real files.
-
-## A/B Comparison Contract
-
-`ab-urls` parent runs compare A and B by `case_id`.
-
-The comparison is not a new source of truth.
-It is a derived summary over the two variant runs.
-
-### Accepted Comparison Labels
-
-Parent `comparison.json` may classify each case as:
-
-- `same-pass`
-- `same-fail`
-- `same-blocked`
-- `regression`
-- `improvement`
-- `behavior-change`
-- `environment-divergence`
-
-Suggested interpretation:
-
-- `regression`: A was `pass`, B became `fail` or `blocked`
-- `improvement`: A was `fail` or `blocked`, B became `pass`
-- `behavior-change`: both variants produced results, but status or assertion outcomes changed without a clear pass-only improvement/regression shape
-- `environment-divergence`: one side did not produce a comparable case result or the difference is dominated by environment/runtime failure
-
-### A/B Parent Report Shape
-
-Parent `report.md` for `ab-urls` must contain exactly these sections:
-
-1. `Comparison Summary`
-2. `Variant Table`
-3. `Case Matrix`
-4. `Regressions`
-5. `Improvements`
-6. `Suggested Next Fixes`
-
-Keep `Suggested Next Fixes` to at most 3 items and prefer real target-skill files referenced by regressing or behavior-changing cases.

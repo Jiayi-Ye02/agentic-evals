@@ -3,4 +3,3 @@ runs/
 targets/voice-ai-integration/deferred-cases/
 .agents/
 skills-lock.json
-*/__pycache__/
