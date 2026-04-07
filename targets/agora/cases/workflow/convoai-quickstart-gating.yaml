@@ -1,0 +1,37 @@
+case_id: "convoai-quickstart-gating"
+title: "ConvoAI quickstart should follow the gated state machine and not skip to code"
+
+input:
+  user_prompt: "I want to build an AI voice assistant with Agora ConvoAI, using Python backend."
+  locale: "en-US"
+
+setup: {}
+
+assert:
+  summary: "For a new ConvoAI request without a working baseline, the assistant should enter the quickstart gated flow: intro, then baseline-path confirmation, not jump straight to code."
+  required:
+    - description: "The accepted session evidence should show that the ConvoAI README and quickstarts.md were consulted."
+      pass_criteria:
+        - "The accepted session evidence shows consultation of `.agents/skills/agora/references/conversational-ai/README.md`."
+        - "The accepted session evidence shows consultation of `.agents/skills/agora/references/conversational-ai/quickstarts.md`."
+      fail_signals:
+        - "The accepted session evidence never consults the ConvoAI quickstarts.md."
+      evidence_scope:
+        - "accepted-session.jsonl"
+    - description: "The first answer should give a ConvoAI intro and ask for the baseline path, not generate code."
+      pass_criteria:
+        - "The answer explains what ConvoAI is or how the voice agent flow works."
+        - "The answer asks the user to choose a baseline path or confirm readiness before generating any code."
+      fail_signals:
+        - "The answer generates Python code, clone commands, or project structure before the baseline path is confirmed."
+        - "The answer skips the intro and jumps directly into SDK setup or /join payload."
+      evidence_scope:
+        - "final-answer.txt"
+
+  forbidden: []
+
+notes:
+  why_it_matters: "The quickstarts.md defines a strict state machine. Skipping gates leads to wrong assumptions about the user's setup."
+  likely_fix_files:
+    - ".agents/skills/agora/references/conversational-ai/quickstarts.md"
+    - ".agents/skills/agora/references/conversational-ai/README.md"

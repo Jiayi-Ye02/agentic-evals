@@ -1,0 +1,36 @@
+case_id: "convoai-auth-prefers-token"
+title: "ConvoAI auth guidance should recommend token auth over Basic Auth"
+
+input:
+  user_prompt: "What authentication should I use for the Agora ConvoAI REST API?"
+  locale: "en-US"
+
+setup: {}
+
+assert:
+  summary: "ConvoAI auth guidance should recommend token-based auth as the default and treat Basic Auth as a fallback."
+  required:
+    - description: "The accepted session evidence should show that auth-related references were consulted."
+      pass_criteria:
+        - "The accepted session evidence shows consultation of `.agents/skills/agora/references/conversational-ai/README.md` or `.agents/skills/agora/references/conversational-ai/auth-flow.md`."
+      fail_signals:
+        - "The accepted session evidence never consults any ConvoAI auth reference."
+      evidence_scope:
+        - "accepted-session.jsonl"
+    - description: "The final answer should recommend token auth as the default."
+      pass_criteria:
+        - "Recommends Agora token auth (`agora token=`) as the default for new ConvoAI REST API integrations."
+        - "Presents Basic Auth only as a fallback or alternative option."
+      fail_signals:
+        - "Presents Basic Auth as the default or primary recommendation."
+        - "Fails to distinguish the preferred default from the fallback."
+      evidence_scope:
+        - "final-answer.txt"
+
+  forbidden: []
+
+notes:
+  why_it_matters: "The ConvoAI README and auth-flow.md both explicitly state token auth is preferred. Basic Auth grants broader account-level access and is less secure."
+  likely_fix_files:
+    - ".agents/skills/agora/references/conversational-ai/README.md"
+    - ".agents/skills/agora/references/conversational-ai/auth-flow.md"

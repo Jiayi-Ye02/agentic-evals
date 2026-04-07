@@ -1,0 +1,33 @@
+case_id: "route-rtc-direct"
+title: "A clear RTC video call request should route directly to RTC without intake"
+
+input:
+  user_prompt: "Help me set up a 1-on-1 video call using Agora RTC Web SDK."
+  locale: "en-US"
+
+setup: {}
+
+assert:
+  summary: "A clear RTC request should route directly to the RTC README without going through intake."
+  required:
+    - description: "The accepted session evidence should show that the RTC module was consulted."
+      pass_criteria:
+        - "The accepted session evidence shows consultation of `.agents/skills/agora/references/rtc/README.md`."
+      fail_signals:
+        - "The accepted session evidence never consults `.agents/skills/agora/references/rtc/README.md`."
+      evidence_scope:
+        - "accepted-session.jsonl"
+    - description: "The intake skill should NOT be loaded for a clear RTC request."
+      pass_criteria:
+        - "The accepted session evidence does not show consultation of `.agents/skills/agora/intake/SKILL.md`."
+      fail_signals:
+        - "The accepted session evidence shows consultation of `.agents/skills/agora/intake/SKILL.md` for a clearly RTC-specific request."
+      evidence_scope:
+        - "accepted-session.jsonl"
+
+  forbidden: []
+
+notes:
+  why_it_matters: "Clear product requests should skip intake per SKILL.md routing rules."
+  likely_fix_files:
+    - ".agents/skills/agora/SKILL.md"

@@ -1,5 +1,0 @@
-suite_id: "source-order"
-title: "ConvoAI quickstart phase boundaries"
-
-cases:
-  - "targets/voice-ai-integration/cases/convoai-phase1-only-before-gates.yaml"

@@ -1,5 +1,0 @@
-suite_id: "convoai-intake"
-title: "ConvoAI quickstart first-turn gating"
-
-cases:
-  - "targets/voice-ai-integration/cases/convoai-quickstart-first-turn.yaml"

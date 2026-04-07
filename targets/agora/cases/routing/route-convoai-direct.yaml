@@ -1,0 +1,33 @@
+case_id: "route-convoai-direct"
+title: "A clear AI voice bot request should route directly to ConvoAI without intake"
+
+input:
+  user_prompt: "I want to build a demo that talks to an AI voice agent using Agora ConvoAI."
+  locale: "en-US"
+
+setup: {}
+
+assert:
+  summary: "A clear ConvoAI request should route directly to the ConvoAI README without going through intake/SKILL.md."
+  required:
+    - description: "The accepted session evidence should show that the ConvoAI module was consulted."
+      pass_criteria:
+        - "The accepted session evidence shows consultation of `.agents/skills/agora/references/conversational-ai/README.md`."
+      fail_signals:
+        - "The accepted session evidence never consults `.agents/skills/agora/references/conversational-ai/README.md`."
+      evidence_scope:
+        - "accepted-session.jsonl"
+    - description: "The intake skill should NOT be loaded for a clear ConvoAI request."
+      pass_criteria:
+        - "The accepted session evidence does not show consultation of `.agents/skills/agora/intake/SKILL.md`."
+      fail_signals:
+        - "The accepted session evidence shows consultation of `.agents/skills/agora/intake/SKILL.md` for a clearly ConvoAI-specific request."
+      evidence_scope:
+        - "accepted-session.jsonl"
+
+  forbidden: []
+
+notes:
+  why_it_matters: "SKILL.md routing rules say clear product-specific requests should skip intake. Loading intake adds unnecessary latency and confusion."
+  likely_fix_files:
+    - ".agents/skills/agora/SKILL.md"

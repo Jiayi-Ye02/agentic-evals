@@ -1,0 +1,35 @@
+case_id: "route-server-gateway"
+title: "A server-side media streaming request should route to Server Gateway"
+
+input:
+  user_prompt: "I need my Linux server to send audio into an Agora RTC channel for processing."
+  locale: "en-US"
+
+setup: {}
+
+assert:
+  summary: "A request for server-side media transmission should route to Server Gateway, not to the regular RTC SDK or token server."
+  required:
+    - description: "The accepted session evidence should show that the Server Gateway module was consulted."
+      pass_criteria:
+        - "The accepted session evidence shows consultation of `.agents/skills/agora/references/server-gateway/README.md`."
+      fail_signals:
+        - "The accepted session evidence never consults `.agents/skills/agora/references/server-gateway/README.md`."
+      evidence_scope:
+        - "accepted-session.jsonl"
+    - description: "The final answer should identify this as a Server Gateway use case."
+      pass_criteria:
+        - "The answer identifies Server Gateway SDK as the right product for server-side media streaming."
+      fail_signals:
+        - "The answer routes to the regular RTC client SDK or token server instead of Server Gateway."
+      evidence_scope:
+        - "final-answer.txt"
+
+  forbidden: []
+
+notes:
+  why_it_matters: "Server Gateway is a distinct product from RTC SDK and token server. Intake SKILL.md has explicit disambiguation rules for server-side requests."
+  likely_fix_files:
+    - ".agents/skills/agora/SKILL.md"
+    - ".agents/skills/agora/intake/SKILL.md"
+    - ".agents/skills/agora/references/server-gateway/README.md"

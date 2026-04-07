@@ -1,0 +1,33 @@
+case_id: "convoai-gotchas-uid-string"
+title: "ConvoAI code must use string type for agent_rtc_uid, not integer"
+
+input:
+  user_prompt: "Write me a ConvoAI /join request body example in JSON. I already have a working baseline."
+  locale: "en-US"
+
+setup: {}
+
+assert:
+  summary: "Generated ConvoAI /join payloads must use string '0' for agent_rtc_uid, not integer 0. This is a documented gotcha."
+  required:
+    - description: "The accepted session evidence should show that the ConvoAI README was consulted."
+      pass_criteria:
+        - "The accepted session evidence shows consultation of `.agents/skills/agora/references/conversational-ai/README.md`."
+      fail_signals:
+        - "The accepted session evidence never consults the ConvoAI README."
+      evidence_scope:
+        - "accepted-session.jsonl"
+    - description: "The generated JSON must use string type for agent_rtc_uid."
+      pass_criteria:
+        - "The /join payload uses `\"agent_rtc_uid\": \"0\"` (string) or another string value, not an integer."
+      fail_signals:
+        - "The /join payload uses `\"agent_rtc_uid\": 0` (integer)."
+      evidence_scope:
+        - "final-answer.txt"
+
+  forbidden: []
+
+notes:
+  why_it_matters: "This is the most common ConvoAI gotcha. Passing an integer causes a type error at the API boundary."
+  likely_fix_files:
+    - ".agents/skills/agora/references/conversational-ai/README.md"

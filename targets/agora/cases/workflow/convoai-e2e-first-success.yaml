@@ -1,0 +1,71 @@
+case_id: "convoai-e2e-first-success"
+title: "End-to-end ConvoAI Web demo: generate, run, and verify"
+
+input:
+  user_prompt: "Build me a Web demo where I can have a voice conversation with an AI agent. Once the code is ready, start it up, verify it actually works, and tell me the result."
+  locale: "en-US"
+
+setup:
+  env_vars_required:
+    - "AGORA_APP_ID"
+    - "AGORA_APP_CERTIFICATE"
+    - "AGENT_UID"
+    - "OPENAI_API_KEY"
+    - "DEEPGRAM_API_KEY"
+    - "ELEVENLABS_API_KEY"
+
+assert:
+  summary: "The agent should generate a working ConvoAI Web demo that reads credentials from env vars, start the dev server, run automated verification, and report whether the demo works."
+  required:
+    - description: "The generated code must read all required credentials from environment variables, not hardcode them."
+      pass_criteria:
+        - "The code reads AGORA_APP_ID, AGORA_APP_CERTIFICATE, AGENT_UID, OPENAI_API_KEY, DEEPGRAM_API_KEY, and ELEVENLABS_API_KEY from environment variables (e.g., process.env.AGORA_APP_ID)."
+        - "No API key or credential value is hardcoded in the source files."
+      fail_signals:
+        - "Any credential is hardcoded as a literal string in the source code."
+        - "One or more required env vars are missing from the code."
+      evidence_scope:
+        - "accepted-session.jsonl"
+        - "final-answer.txt"
+    - description: "The accepted session evidence should show that a dev server was started."
+      pass_criteria:
+        - "The accepted session evidence shows a command starting a development server (e.g., npm run dev, pnpm dev, npx next dev, or equivalent)."
+      fail_signals:
+        - "No dev server start command is observed in the accepted session evidence."
+      evidence_scope:
+        - "accepted-session.jsonl"
+    - description: "The accepted session evidence should show automated verification of the running demo."
+      pass_criteria:
+        - "The accepted session evidence shows an automated attempt to verify the demo works, such as browser automation (Playwright, Puppeteer), curl/fetch to the dev server, or a test script that interacts with the running page."
+      fail_signals:
+        - "The agent only generates code but never attempts to verify the running demo."
+      evidence_scope:
+        - "accepted-session.jsonl"
+    - description: "The agent should report a clear test conclusion based on observed results."
+      pass_criteria:
+        - "The final answer includes a clear conclusion about whether the demo ran successfully or encountered errors."
+        - "If errors occurred, the conclusion describes what went wrong."
+      fail_signals:
+        - "The final answer does not include any test conclusion or error analysis."
+        - "The agent claims success without evidence of actually running the demo."
+      evidence_scope:
+        - "final-answer.txt"
+        - "accepted-session.jsonl"
+    - description: "The ConvoAI /join payload must use correct types per documented gotchas."
+      pass_criteria:
+        - "agent_rtc_uid is passed as a string (e.g., \"0\" or the AGENT_UID env var as string), not an integer."
+      fail_signals:
+        - "agent_rtc_uid is passed as an integer literal (e.g., 0 instead of \"0\")."
+      evidence_scope:
+        - "accepted-session.jsonl"
+        - "final-answer.txt"
+
+  forbidden: []
+
+notes:
+  why_it_matters: "This is the ultimate first-success test. A skill that can guide an agent to produce a working, runnable demo with automated verification proves the entire ConvoAI integration chain works end to end."
+  likely_fix_files:
+    - ".agents/skills/agora/references/conversational-ai/README.md"
+    - ".agents/skills/agora/references/conversational-ai/quickstarts.md"
+    - ".agents/skills/agora/references/conversational-ai/auth-flow.md"
+    - ".agents/skills/agora/references/rtc/web.md"

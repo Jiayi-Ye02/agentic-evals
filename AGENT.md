@@ -29,7 +29,7 @@ Every evaluator that uses this repo should follow this order:
 1. Read this file.
 2. Resolve `target_id`. If none is provided, use the repo default target.
 3. Read `targets/<target_id>/target.yaml`.
-4. Read the selected suite files.
+4. Read the selected suite files from `targets/<target_id>/cases/<suite_id>/suite.yaml`.
 5. Read each case file referenced by those suites, or the selected case file.
 6. Create `runs/<run_id>/manifest.json`.
 7. Create a parent temp directory for isolated per-case workspaces.
@@ -53,16 +53,18 @@ agentic-evals/
 ├── targets/
 │   └── <target_id>/
 │       ├── target.yaml
-│       ├── suites/
 │       └── cases/
+│           └── <suite_id>/
+│               ├── suite.yaml
+│               └── <case_id>.yaml
 └── runs/
 ```
 
 ## Source Of Truth
 
 - `targets/<target_id>/target.yaml` defines the target under test, the entry skill, the skill roots that may be consulted, the default suites, the required run artifacts, and the allowed statuses.
-- `targets/<target_id>/suites/` groups active cases into runnable suites.
-- `targets/<target_id>/cases/` holds active cases.
+- `targets/<target_id>/cases/<suite_id>/suite.yaml` defines a runnable suite and lists its cases.
+- `targets/<target_id>/cases/<suite_id>/<case_id>.yaml` holds active cases, co-located with their suite.
 - `targets/<target_id>/deferred-cases/` holds backlog cases that are intentionally not active.
 - `docs/session-evidence.md` defines the local session evidence model.
 

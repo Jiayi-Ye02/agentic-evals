@@ -1,0 +1,6 @@
+suite_id: "bootstrap"
+title: "Skill structure and doc-fetching bootstrap checks"
+
+cases:
+  - "targets/agora/cases/bootstrap/reads-skill-md-first.yaml"
+  - "targets/agora/cases/bootstrap/local-first-before-level2.yaml"

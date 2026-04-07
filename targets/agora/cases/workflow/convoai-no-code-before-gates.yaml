@@ -1,0 +1,34 @@
+case_id: "convoai-no-code-before-gates"
+title: "ConvoAI quickstart must not generate /join payloads or SDK code before gates resolve"
+
+input:
+  user_prompt: "Show me the ConvoAI /join request body for starting an agent with GPT-4o."
+  locale: "en-US"
+
+setup: {}
+
+assert:
+  summary: "Even when the user asks for code directly, the quickstart state machine forbids generating /join payloads or SDK code before the baseline path and readiness gates are resolved."
+  required:
+    - description: "The accepted session evidence should show that quickstarts.md was consulted."
+      pass_criteria:
+        - "The accepted session evidence shows consultation of `.agents/skills/agora/references/conversational-ai/quickstarts.md`."
+      fail_signals:
+        - "The accepted session evidence never consults quickstarts.md."
+      evidence_scope:
+        - "accepted-session.jsonl"
+    - description: "The answer should not produce a /join payload or SDK code without first confirming the user has a working baseline."
+      pass_criteria:
+        - "The answer asks whether the user already has a working ConvoAI baseline before providing code."
+        - "Or the answer explains the quickstart flow and asks the user to confirm readiness first."
+      fail_signals:
+        - "The answer directly generates a /join request body or SDK code without asking about the baseline."
+      evidence_scope:
+        - "final-answer.txt"
+
+  forbidden: []
+
+notes:
+  why_it_matters: "The quickstart state machine explicitly forbids generating /join payloads, SDK code, or custom file structures while quickstart is unresolved."
+  likely_fix_files:
+    - ".agents/skills/agora/references/conversational-ai/quickstarts.md"

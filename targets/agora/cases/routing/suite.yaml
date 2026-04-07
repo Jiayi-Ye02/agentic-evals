@@ -1,0 +1,9 @@
+suite_id: "routing"
+title: "Product-module routing decisions"
+
+cases:
+  - "targets/agora/cases/routing/route-convoai-direct.yaml"
+  - "targets/agora/cases/routing/route-rtc-direct.yaml"
+  - "targets/agora/cases/routing/route-vague-to-intake.yaml"
+  - "targets/agora/cases/routing/route-rtm-not-convoai.yaml"
+  - "targets/agora/cases/routing/route-server-gateway.yaml"
