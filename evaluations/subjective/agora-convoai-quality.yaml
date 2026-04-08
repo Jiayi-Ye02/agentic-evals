@@ -1,0 +1,9 @@
+eval_id: "agora-convoai-quality"
+mode: "subjective"
+title: "Agora ConvoAI response quality scoring"
+
+target_id: "agora"
+suites:
+  - "workflow"
+
+rubric: "rubrics/default.yaml"

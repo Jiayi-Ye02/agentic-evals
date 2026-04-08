@@ -12,6 +12,8 @@ This repo is the source of truth for:
 - suites
 - cases
 - assertions
+- evaluations (AB tests, subjective scoring, vendor comparisons)
+- rubrics (scoring dimensions)
 - required run artifacts
 - report shape
 
@@ -72,6 +74,12 @@ agentic-evals/
 │           └── <suite_id>/
 │               ├── suite.yaml
 │               └── <case_id>.yaml
+├── evaluations/
+│   ├── ab/
+│   ├── comparison/
+│   └── subjective/
+├── rubrics/
+│   └── default.yaml
 └── runs/
 ```
 
@@ -380,3 +388,129 @@ For `ab-urls`, the top-level `report.md` must contain exactly these sections:
 6. `Suggested Next Fixes`
 
 Keep `Suggested Next Fixes` to at most 3 items and point to real files.
+
+
+## Evaluation Modes
+
+Evaluations are a higher-level orchestration layer above targets and cases.
+They define **how** to run tests (AB, comparison, subjective), not **what** to test.
+
+### Modes
+
+| Mode | Purpose | Variants | Output |
+|------|---------|----------|--------|
+| `ab` | Compare two versions of the same skill on the same cases | 2 (a, b) | Win/loss/tie per case + rubric scores |
+| `comparison` | Compare different vendors' skills on shared cases | 2+ | Side-by-side rubric scores + ranking |
+| `subjective` | Score a single skill on rubric dimensions beyond pass/fail | 1 | Per-case rubric scores |
+
+### Evaluation YAML Shape
+
+Every evaluation file must contain:
+
+- `eval_id`: unique identifier
+- `mode`: one of `ab`, `comparison`, `subjective`
+- `title`: human-readable description
+- `rubric`: path to a rubric YAML file
+
+Mode-specific fields:
+
+- `ab` and `comparison`: `variants` object with labeled skill paths or target IDs
+- `ab`: `target_id` and `suites` (both variants share the same cases)
+- `comparison`: `shared_cases.from_target` and `shared_cases.suites`
+- `subjective`: `target_id` and `suites`
+
+### Rubric Shape
+
+Each rubric file must contain:
+
+- `rubric_id`: unique identifier
+- `dimensions`: array of scoring dimensions
+
+Each dimension must contain:
+
+- `name`: short identifier (e.g., `accuracy`, `safety`)
+- `description`: what the dimension measures
+- `scale`: array of valid scores (e.g., `[1, 2, 3, 4, 5]`)
+- `anchors`: optional map of score → description for calibration
+
+### Evaluation Workflow
+
+1. Read this file.
+2. Read the evaluation YAML from `evaluations/<mode>/<eval_id>.yaml`.
+3. Read the referenced rubric from `rubrics/`.
+4. Resolve the target(s) and case set.
+5. For each variant:
+   a. Prepare the skill version or skill path in the case workspace.
+   b. Execute each case using the standard case execution chain.
+   c. Collect evidence and judge pass/fail assertions as usual.
+   d. Score each rubric dimension from the accepted session evidence.
+6. Write variant-specific artifacts under `runs/<run_id>/variants/<variant_label>/`.
+7. Write `eval-report.md`.
+
+### Evaluation Run Artifacts
+
+```text
+runs/<run_id>/
+├── manifest.json
+├── variants/
+│   └── <variant_label>/
+│       ├── case-artifacts/
+│       │   └── <case_id>/
+│       │       ├── accepted-session.json
+│       │       └── final-answer.txt
+│       ├── case-results/
+│       │   └── <case_id>.json
+│       └── transcript.md
+├── eval-report.md
+└── report.md
+```
+
+`manifest.json` must additionally record:
+
+- `eval_id`
+- `eval_mode`
+- `variant_labels`
+- `rubric_id`
+
+### Evaluation Case Result Shape
+
+Each variant's `case-results/<case_id>.json` extends the standard case result with:
+
+```json
+{
+  "case_id": "example-case",
+  "variant": "a",
+  "status": "pass",
+  "assertions": [ ... ],
+  "rubric_scores": {
+    "accuracy": 4,
+    "completeness": 5,
+    "doc_consultation": 3,
+    "safety": 5,
+    "flow_adherence": 4
+  },
+  "rubric_notes": {
+    "doc_consultation": "Consulted README but skipped quickstarts.md."
+  }
+}
+```
+
+### Evaluation Report Shape
+
+`eval-report.md` must contain exactly these sections:
+
+1. `Evaluation Summary` — mode, variants, case count, rubric used
+2. `Scoring Table` — each case × each dimension, columns per variant
+3. `Head-to-Head` — (AB and comparison only) win/loss/tie counts per dimension
+4. `Detailed Findings` — per-case narrative of notable differences or quality issues
+5. `Recommendations` — at most 3 actionable items pointing to real files
+
+For `subjective` mode, omit the `Head-to-Head` section.
+
+### Scoring Rules
+
+- Score each dimension independently from the accepted session evidence.
+- Use the rubric anchors for calibration. A score of 3 means "meets the anchor description for 3."
+- If evidence is insufficient to score a dimension, record `null` and explain in `rubric_notes`.
+- Rubric scores are independent of pass/fail assertions. A case can `pass` all assertions but score low on `completeness`, or `fail` an assertion but score high on `accuracy`.
+- For AB and comparison modes, score each variant independently before comparing. Do not let one variant's score influence another's.

@@ -1,0 +1,21 @@
+eval_id: "convoai-agora-vs-competitor"
+mode: "comparison"
+title: "ConvoAI skill comparison: Agora vs Competitor"
+
+variants:
+  agora:
+    label: "Agora"
+    target_id: "agora"
+    skill_path: ".agents/skills/agora"
+  competitor:
+    label: "Competitor"
+    target_id: "competitor-convoai"
+    skill_path: ".agents/skills/competitor-convoai"
+
+shared_cases:
+  from_target: "agora"
+  suites:
+    - "routing"
+    - "workflow"
+
+rubric: "rubrics/default.yaml"

@@ -1,0 +1,44 @@
+rubric_id: "default"
+title: "Default scoring rubric"
+description: "General-purpose scoring dimensions for skill evaluation."
+
+dimensions:
+  - name: "accuracy"
+    description: "Answer correctness based on the skill's reference docs and known gotchas."
+    scale: [1, 2, 3, 4, 5]
+    anchors:
+      1: "Fundamentally wrong or fabricated information."
+      3: "Mostly correct but with notable gaps or minor errors."
+      5: "Fully correct, consistent with reference docs."
+
+  - name: "completeness"
+    description: "Whether the answer covers all aspects of the user's request."
+    scale: [1, 2, 3, 4, 5]
+    anchors:
+      1: "Addresses less than half of the request."
+      3: "Covers the main ask but misses secondary aspects."
+      5: "Fully addresses every part of the request."
+
+  - name: "doc_consultation"
+    description: "Whether the right reference files were consulted in the right order."
+    scale: [1, 2, 3, 4, 5]
+    anchors:
+      1: "No relevant reference files consulted."
+      3: "Key files consulted but ordering or coverage is incomplete."
+      5: "All relevant files consulted in the correct order."
+
+  - name: "safety"
+    description: "No hardcoded credentials, no fabricated API params, no security anti-patterns."
+    scale: [1, 2, 3, 4, 5]
+    anchors:
+      1: "Hardcoded secrets or fabricated API parameters."
+      3: "Credentials handled correctly but minor security gaps."
+      5: "Clean credential handling, no fabrication, follows best practices."
+
+  - name: "flow_adherence"
+    description: "Whether the skill's defined workflow (gating, state machine, routing) was followed."
+    scale: [1, 2, 3, 4, 5]
+    anchors:
+      1: "Workflow completely ignored."
+      3: "Workflow partially followed with skipped or misordered steps."
+      5: "Workflow followed exactly as defined."
