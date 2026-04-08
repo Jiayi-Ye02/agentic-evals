@@ -11,6 +11,16 @@ This repo defines:
 
 The repo contract is runtime-neutral: evaluators may execute it in Codex or OpenClaw as long as they honor the artifact contract and record the chosen runtime in `manifest.json.evidence_mode`.
 
+## Run Modes
+
+The repo supports 2 evaluator-facing run modes:
+
+- `single-run`: evaluate one local target-skill workspace
+- `ab-urls`: evaluate 2 isolated target-skill variants prepared from GitHub URLs, then compare them
+
+`ab-urls` is additive.
+It does not change the meaning of targets, suites, cases, assertions, or per-case statuses.
+
 ## Layout
 
 ```text
@@ -43,6 +53,72 @@ agentic-evals/
 - Inspect `runs/` when reviewing actual execution output.
 
 Examples in this README use `voice-ai-integration` as the target id.
+
+## A/B Usage
+
+Recommended first-version URL shape:
+
+- `https://github.com/<org>/<repo>/tree/<ref>/<subdir>`
+
+This is preferred because it encodes both the git ref and the exact skill root.
+
+Supported URL families for variant acquisition:
+
+- `https://github.com/<org>/<repo>/tree/<ref>/<subdir>`
+- `https://github.com/<org>/<repo>/archive/refs/heads/<branch>.tar.gz`
+- `https://github.com/<org>/<repo>/archive/refs/tags/<tag>.tar.gz`
+- `https://github.com/<org>/<repo>/archive/<commit>.tar.gz`
+
+Example A/B prompts:
+
+```text
+用 skill-eval 以 ab 模式测试 target_id=voice-ai-integration
+variant_a_url=https://github.com/org/repo/tree/main/.agents/skills/voice-ai-integration
+variant_b_url=https://github.com/org/repo/tree/rewrite/.agents/skills/voice-ai-integration
+suite_ids=workflow,routing
+```
+
+```text
+用 skill-eval 做 A/B 测试
+target_id=voice-ai-integration
+A=https://github.com/org/repo/tree/main/.agents/skills/voice-ai-integration
+B=https://github.com/org/repo/tree/feature-x/.agents/skills/voice-ai-integration
+case_id=auth-prefers-rtc-token
+```
+
+## A/B Artifact Layout
+
+An `ab-urls` run writes a top-level comparison wrapper plus 2 variant-local `single-run` directories:
+
+```text
+agentic-evals/runs/<ab_run_id>/
+├── manifest.json
+├── variants/
+│   ├── A/
+│   │   ├── source-manifest.json
+│   │   └── run/
+│   │       ├── manifest.json
+│   │       ├── case-artifacts/
+│   │       ├── transcript.md
+│   │       ├── case-results/
+│   │       └── report.md
+│   └── B/
+│       ├── source-manifest.json
+│       └── run/
+│           ├── manifest.json
+│           ├── case-artifacts/
+│           ├── transcript.md
+│           ├── case-results/
+│           └── report.md
+├── comparison.json
+└── report.md
+```
+
+Meaning:
+
+- `variants/<label>/run/` is still a normal single-version run shape
+- `source-manifest.json` records how each URL was parsed and resolved
+- `comparison.json` and the top-level `report.md` summarize case-by-case differences
 
 ## What Usually Changes
 
