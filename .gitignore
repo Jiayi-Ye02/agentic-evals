@@ -1,5 +1,6 @@
 runs/
 .specstory/
 targets/voice-ai-integration/deferred-cases/
-.agents/
+# keep .agents/skills tracked for CI
+.agents/skills/*/node_modules/
 skills-lock.json
