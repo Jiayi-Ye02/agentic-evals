@@ -1,0 +1,20 @@
+eval_id: "agora-v1.2-vs-v1.3"
+mode: "ab"
+title: "Agora skill v1.2 vs v1.3 regression check"
+
+variants:
+  a:
+    label: "v1.2-stable"
+    skill_path: ".agents/skills/agora"
+    skill_ref: "v1.2.0"
+  b:
+    label: "v1.3-candidate"
+    skill_path: ".agents/skills/agora"
+    skill_ref: "v1.3.0"
+
+target_id: "agora"
+suites:
+  - "routing"
+  - "workflow"
+
+rubric: "rubrics/default.yaml"

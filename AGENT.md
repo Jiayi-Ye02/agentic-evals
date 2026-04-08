@@ -12,6 +12,8 @@ This repo is the source of truth for:
 - suites
 - cases
 - assertions
+- evaluations (AB tests, subjective scoring, vendor comparisons)
+- rubrics (scoring dimensions)
 - required run artifacts
 - report shape
 
@@ -22,25 +24,40 @@ If a case cannot be judged reliably from the available evidence, mark it `blocke
 
 The current default target is `voice-ai-integration`.
 
+## Run Modes
+
+This repo supports 2 evaluator run modes:
+
+- `single-run`: the existing one-skill evaluation flow
+- `ab-urls`: a top-level comparison flow that prepares 2 isolated skill variants from URLs and runs the same case set twice
+
+`single-run` remains the baseline contract.
+`ab-urls` adds a top-level orchestrator artifact shape around 2 variant-local `single-run` executions.
+It does not change case semantics, assertion semantics, or allowed case statuses.
+
 ## Run Workflow
 
 Every evaluator that uses this repo should follow this order:
 
 1. Read this file.
-2. Resolve `target_id`. If none is provided, use the repo default target.
-3. Read `targets/<target_id>/target.yaml`.
-4. Read the selected suite files from `targets/<target_id>/cases/<suite_id>/suite.yaml`.
-5. Read each case file referenced by those suites, or the selected case file.
-6. Create `runs/<run_id>/manifest.json`.
-7. Create a parent temp directory for isolated per-case workspaces.
-8. Execute each case in its own fresh isolated workspace.
-9. Locate the accepted fresh-agent child session for each case.
-10. Save the accepted child session for each case.
-11. Render a readable `transcript.md` from the accepted child sessions.
-12. Write one `case-results/<case_id>.json` file per case.
-13. Write `report.md`.
+2. Resolve `run_mode`. If omitted, use `single-run`.
+3. Resolve `target_id`. If none is provided, use the repo default target.
+4. Read `targets/<target_id>/target.yaml`.
+5. Read the selected suite files from `targets/<target_id>/cases/<suite_id>/suite.yaml`.
+6. Read each case file referenced by those suites, or the selected case file.
+7. Create `runs/<run_id>/manifest.json`.
+8. If `run_mode` is `ab-urls`, prepare 2 variant source workspaces before any case execution.
+9. Create a parent temp directory for isolated per-case workspaces.
+10. Execute each case in its own fresh isolated workspace.
+11. Locate the accepted fresh-agent child session for each case.
+12. Save the accepted child session for each case.
+13. Render a readable `transcript.md` from the accepted child sessions.
+14. Write one `case-results/<case_id>.json` file per case.
+15. Write `report.md`.
+16. If `run_mode` is `ab-urls`, join the 2 variant result sets by `case_id`, then write `comparison.json` and the top-level comparison `report.md`.
 
 Do not start execution before the case set is known.
+In `ab-urls`, both variants must use the exact same resolved case set.
 
 ## Repo Layout
 
@@ -57,6 +74,12 @@ agentic-evals/
 │           └── <suite_id>/
 │               ├── suite.yaml
 │               └── <case_id>.yaml
+├── evaluations/
+│   ├── ab/
+│   ├── comparison/
+│   └── subjective/
+├── rubrics/
+│   └── default.yaml
 └── runs/
 ```
 
@@ -72,7 +95,9 @@ Deferred cases are not part of the runnable active suite set unless a human expl
 
 ## Required Run Artifacts
 
-Each run must create:
+### `single-run`
+
+Each `single-run` must create:
 
 ```text
 runs/<run_id>/
@@ -91,6 +116,7 @@ runs/<run_id>/
 
 `manifest.json` must record:
 
+- `run_mode` with value `single-run`
 - `run_id`
 - `target_id`
 - `suite_ids`
@@ -104,7 +130,79 @@ runs/<run_id>/
   - `openclaw-session-history`
 - `notes` if the environment is unusual
 
+It is also acceptable to record extra fields such as `selected_case_ids`, `resolved_case_ids`, `source_workspace`, `run_state`, `variant_label`, or `variant_source_url`.
+
 Each case result must record that case's accepted `workspace_root`.
+
+### `ab-urls`
+
+Each `ab-urls` top-level run must create:
+
+```text
+runs/<ab_run_id>/
+├── manifest.json
+├── variants/
+│   ├── A/
+│   │   ├── source-manifest.json
+│   │   └── run/
+│   │       ├── manifest.json
+│   │       ├── case-artifacts/
+│   │       ├── transcript.md
+│   │       ├── case-results/
+│   │       └── report.md
+│   └── B/
+│       ├── source-manifest.json
+│       └── run/
+│           ├── manifest.json
+│           ├── case-artifacts/
+│           ├── transcript.md
+│           ├── case-results/
+│           └── report.md
+├── comparison.json
+└── report.md
+```
+
+Rules:
+
+- `variants/<label>/run/` must follow the same artifact shape as `single-run`.
+- the A and B source workspaces must be isolated from each other and must not share the target skill directory
+- the 2 variant runs must resolve the same `target.yaml`, suite set, and case set
+- the top-level `ab-urls` run is responsible only for variant acquisition, variant run coordination, and comparison
+- `agentic-evals` remains the only source of truth for case meaning and assertion meaning
+
+`runs/<ab_run_id>/manifest.json` must record:
+
+- `run_mode` with value `ab-urls`
+- `run_id`
+- `target_id`
+- `suite_ids`
+- `selected_case_ids` when applicable
+- `resolved_case_ids`
+- `started_at`
+- `evidence_mode`
+- `variants` with A/B source URLs and relative artifact paths
+- `notes` when the environment is unusual
+
+Each `variants/<label>/source-manifest.json` should record at least:
+
+- `label`
+- `source_url`
+- normalized URL parse output such as `repo_url`, `ref`, `subdir`, `ref_type`, and `checkout_ref`
+- `checkout_dir`
+- `resolved_skill_dir`
+- `prepared_source_workspace`
+- `status`
+- `error` when acquisition failed
+
+If a variant URL cannot be parsed, downloaded, checked out, or resolved to a skill root:
+
+- mark that variant as an acquisition failure
+- do not judge cases for that variant
+- continue the other variant if possible
+- mark the top-level A/B run `blocked` or `partial`
+- state clearly which side failed and why
+
+If acquisition fails before a variant can run cases, the evaluator may still initialize `variants/<label>/run/` as a blocked skeleton with `run_state: acquisition-failed`.
 
 ## Case Status
 
@@ -177,6 +275,9 @@ Rules:
 - Treat any observed access outside the case workspace as invalid evidence for that attempt.
 - If no reliable per-tool workdir, resolved path, or command-derived cwd can be observed, that evidence cannot justify a `pass`.
 
+The same isolation policy applies inside `ab-urls`.
+Only the variant-local source workspace for that side may be used to create case workspaces.
+
 ## Assertion Contract
 
 Cases may include:
@@ -233,13 +334,183 @@ Prefer `accepted-session.json#msg-<n>` references in `evidence` when the accepte
 If the runtime only exposes stable line-oriented evidence, `accepted-session.json#L<line>` is also acceptable.
 Use `transcript.md#L<line>` only as a readability aid.
 
+## Comparison Shape
+
+`comparison.json` for `ab-urls` should contain:
+
+- `run_mode` with value `ab-urls`
+- `target_id`
+- `status` with a top-level run state such as `completed`, `partial`, or `blocked`
+- `variant_a` and `variant_b`, each with:
+  - `label`
+  - `source_url`
+  - `run_dir`
+  - acquisition and run status summary
+- `summary`
+- `cases`
+
+Each comparison case entry should contain:
+
+- `case_id`
+- `status_a`
+- `status_b`
+- `comparison`
+- `notes`
+
+Recommended `comparison` values:
+
+- `same-pass`
+- `same-fail`
+- `same-blocked`
+- `regression`
+- `improvement`
+- `behavior-change`
+- `environment-divergence`
+
+The comparison must join only on the same `case_id`.
+
 ## Report Shape
 
-`report.md` must contain exactly these sections:
+For `single-run`, `report.md` must contain exactly these sections:
 
 1. `Run Summary`
 2. `Case Table`
 3. `Failures`
 4. `Suggested Next Fixes`
 
+For `ab-urls`, the top-level `report.md` must contain exactly these sections:
+
+1. `Comparison Summary`
+2. `Variant Table`
+3. `Case Matrix`
+4. `Regressions`
+5. `Improvements`
+6. `Suggested Next Fixes`
+
 Keep `Suggested Next Fixes` to at most 3 items and point to real files.
+
+
+## Evaluation Modes
+
+Evaluations are a higher-level orchestration layer above targets and cases.
+They define **how** to run tests (AB, comparison, subjective), not **what** to test.
+
+### Modes
+
+| Mode | Purpose | Variants | Output |
+|------|---------|----------|--------|
+| `ab` | Compare two versions of the same skill on the same cases | 2 (a, b) | Win/loss/tie per case + rubric scores |
+| `comparison` | Compare different vendors' skills on shared cases | 2+ | Side-by-side rubric scores + ranking |
+| `subjective` | Score a single skill on rubric dimensions beyond pass/fail | 1 | Per-case rubric scores |
+
+### Evaluation YAML Shape
+
+Every evaluation file must contain:
+
+- `eval_id`: unique identifier
+- `mode`: one of `ab`, `comparison`, `subjective`
+- `title`: human-readable description
+- `rubric`: path to a rubric YAML file
+
+Mode-specific fields:
+
+- `ab` and `comparison`: `variants` object with labeled skill paths or target IDs
+- `ab`: `target_id` and `suites` (both variants share the same cases)
+- `comparison`: `shared_cases.from_target` and `shared_cases.suites`
+- `subjective`: `target_id` and `suites`
+
+### Rubric Shape
+
+Each rubric file must contain:
+
+- `rubric_id`: unique identifier
+- `dimensions`: array of scoring dimensions
+
+Each dimension must contain:
+
+- `name`: short identifier (e.g., `accuracy`, `safety`)
+- `description`: what the dimension measures
+- `scale`: array of valid scores (e.g., `[1, 2, 3, 4, 5]`)
+- `anchors`: optional map of score → description for calibration
+
+### Evaluation Workflow
+
+1. Read this file.
+2. Read the evaluation YAML from `evaluations/<mode>/<eval_id>.yaml`.
+3. Read the referenced rubric from `rubrics/`.
+4. Resolve the target(s) and case set.
+5. For each variant:
+   a. Prepare the skill version or skill path in the case workspace.
+   b. Execute each case using the standard case execution chain.
+   c. Collect evidence and judge pass/fail assertions as usual.
+   d. Score each rubric dimension from the accepted session evidence.
+6. Write variant-specific artifacts under `runs/<run_id>/variants/<variant_label>/`.
+7. Write `eval-report.md`.
+
+### Evaluation Run Artifacts
+
+```text
+runs/<run_id>/
+├── manifest.json
+├── variants/
+│   └── <variant_label>/
+│       ├── case-artifacts/
+│       │   └── <case_id>/
+│       │       ├── accepted-session.json
+│       │       └── final-answer.txt
+│       ├── case-results/
+│       │   └── <case_id>.json
+│       └── transcript.md
+├── eval-report.md
+└── report.md
+```
+
+`manifest.json` must additionally record:
+
+- `eval_id`
+- `eval_mode`
+- `variant_labels`
+- `rubric_id`
+
+### Evaluation Case Result Shape
+
+Each variant's `case-results/<case_id>.json` extends the standard case result with:
+
+```json
+{
+  "case_id": "example-case",
+  "variant": "a",
+  "status": "pass",
+  "assertions": [ ... ],
+  "rubric_scores": {
+    "accuracy": 4,
+    "completeness": 5,
+    "doc_consultation": 3,
+    "safety": 5,
+    "flow_adherence": 4
+  },
+  "rubric_notes": {
+    "doc_consultation": "Consulted README but skipped quickstarts.md."
+  }
+}
+```
+
+### Evaluation Report Shape
+
+`eval-report.md` must contain exactly these sections:
+
+1. `Evaluation Summary` — mode, variants, case count, rubric used
+2. `Scoring Table` — each case × each dimension, columns per variant
+3. `Head-to-Head` — (AB and comparison only) win/loss/tie counts per dimension
+4. `Detailed Findings` — per-case narrative of notable differences or quality issues
+5. `Recommendations` — at most 3 actionable items pointing to real files
+
+For `subjective` mode, omit the `Head-to-Head` section.
+
+### Scoring Rules
+
+- Score each dimension independently from the accepted session evidence.
+- Use the rubric anchors for calibration. A score of 3 means "meets the anchor description for 3."
+- If evidence is insufficient to score a dimension, record `null` and explain in `rubric_notes`.
+- Rubric scores are independent of pass/fail assertions. A case can `pass` all assertions but score low on `completeness`, or `fail` an assertion but score high on `accuracy`.
+- For AB and comparison modes, score each variant independently before comparing. Do not let one variant's score influence another's.
