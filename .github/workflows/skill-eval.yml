@@ -61,7 +61,6 @@ jobs:
         with:
           ruby-version: "3.2"
       - name: Validate YAML
-        working-directory: agentic-evals
         env:
           TARGET_ID: ${{ env.TARGET_ID }}
         run: |
