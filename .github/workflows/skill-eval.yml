@@ -166,9 +166,14 @@ jobs:
 
           Timing requirements:
           - Record wall-clock start and end timestamps (ISO 8601 UTC) for each case execution.
+          - Track sub-agent time and evaluator verification time separately:
+            - sub_agent_started_at: when spawn_agent is called
+            - sub_agent_completed_at: when the sub-agent finishes (before evidence collection)
+            - evaluator_started_at: when evidence collection and judgment begins
+            - evaluator_completed_at: when all artifacts for the case are written
           - In report.md, include a "## Timing" section with a table showing:
-            | case_id | started_at | completed_at | duration_s |
-          - In each case-results/<case_id>.json, include "started_at", "completed_at", and "duration_s" fields.
+            | case_id | sub_agent_duration_s | evaluator_duration_s | total_duration_s |
+          - In each case-results/<case_id>.json, include all four timestamps and both durations.
           HEREDOC
 
           echo "" >> /tmp/eval-prompt.txt
