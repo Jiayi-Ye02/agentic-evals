@@ -75,7 +75,7 @@ jobs:
 
   evaluate:
     needs: validate
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     timeout-minutes: 90
     permissions:
       contents: write
@@ -89,6 +89,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Install runtime dependencies
+        run: |
+          pip install pyyaml
+          npm install -g agent-browser
 
       - name: Sync external skill repo
         env:
@@ -175,7 +180,7 @@ jobs:
       - name: Locate run artifacts
         id: artifacts
         run: |
-          LATEST_RUN=$(ls -td runs/run-* 2>/dev/null | head -1)
+          LATEST_RUN=$(ls -td runs/*/ 2>/dev/null | head -1)
           if [ -z "$LATEST_RUN" ]; then
             echo "::warning::No run directory found"
             echo "run_found=false" >> "$GITHUB_OUTPUT"
