@@ -174,6 +174,18 @@ jobs:
           - In report.md, include a "## Timing" section with a table showing:
             | case_id | sub_agent_duration_s | evaluator_duration_s | total_duration_s |
           - In each case-results/<case_id>.json, include all four timestamps and both durations.
+
+          Report quality requirements:
+          - report.md must be useful to a human reading it for the first time.
+          - For each failed assertion, explain WHAT went wrong with specifics:
+            - Quote the actual command or output that was observed (or missing).
+            - Example good: "Agent wrote .env.local but AGORA_APP_ID was empty because $AGORA_APP_ID was not exported in the shell."
+            - Example bad: "Env mapping assertion failed."
+          - For each passed assertion, include a one-line evidence summary.
+          - The "Suggested Next Fixes" section must include concrete actions, not just file paths:
+            - Example good: "In quickstarts.md, add a step to verify env vars are non-empty before starting the dev server."
+            - Example bad: ".agents/skills/agora/references/conversational-ai/quickstarts.md"
+          - If the evaluator browser verification was skipped or degraded (e.g. headless mode, missing tool), note it clearly but do not fail the case for evaluator-side limitations.
           HEREDOC
 
           echo "" >> /tmp/eval-prompt.txt
