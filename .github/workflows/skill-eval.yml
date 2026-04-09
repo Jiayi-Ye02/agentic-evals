@@ -167,6 +167,7 @@ jobs:
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          responses-api-endpoint: ${{ secrets.RESPONSES_API_ENDPOINT }}
           prompt-file: /tmp/eval-prompt.txt
           sandbox: danger-full-access
           model: ${{ github.event.inputs.model || '' }}
