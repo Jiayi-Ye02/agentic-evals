@@ -118,6 +118,18 @@ jobs:
           fi
           echo "Skill synced from ${SKILL_REPO}@${SKILL_REF}"
 
+      - name: Write credentials file
+        env:
+          AGORA_APP_ID: ${{ secrets.AGORA_APP_ID }}
+          AGORA_APP_CERTIFICATE: ${{ secrets.AGORA_APP_CERTIFICATE }}
+        run: |
+          cat > /tmp/agora-credentials.env << EOF
+          AGORA_APP_ID=${AGORA_APP_ID}
+          AGORA_APP_CERTIFICATE=${AGORA_APP_CERTIFICATE}
+          EOF
+          chmod 600 /tmp/agora-credentials.env
+          echo "Credentials written to /tmp/agora-credentials.env"
+
       - name: Build evaluator prompt
         env:
           SUITE_IDS: ${{ github.event.inputs.suite_ids || 'all' }}
@@ -126,8 +138,6 @@ jobs:
           VARIANT_A_URL: ${{ github.event.inputs.variant_a_url || '' }}
           VARIANT_B_URL: ${{ github.event.inputs.variant_b_url || '' }}
           IS_PR: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
-          AGORA_APP_ID: ${{ secrets.AGORA_APP_ID }}
-          AGORA_APP_CERTIFICATE: ${{ secrets.AGORA_APP_CERTIFICATE }}
         run: |
           # For PR triggers, default to e2e case only
           EFFECTIVE_CASE_ID="${CASE_ID}"
@@ -163,14 +173,11 @@ jobs:
 
           echo "" >> /tmp/eval-prompt.txt
 
-          # Forward Agora credentials so sub-agents can use them
-          if [ -n "${AGORA_APP_ID:-}" ]; then
-            echo "Environment variables available for case execution:" >> /tmp/eval-prompt.txt
-            echo "- AGORA_APP_ID=${AGORA_APP_ID}" >> /tmp/eval-prompt.txt
-            echo "- AGORA_APP_CERTIFICATE=${AGORA_APP_CERTIFICATE}" >> /tmp/eval-prompt.txt
-            echo "When creating case workspaces, export these env vars before spawning sub-agents." >> /tmp/eval-prompt.txt
-            echo "" >> /tmp/eval-prompt.txt
-          fi
+          # Point evaluator to credentials file (not in prompt to avoid leaking in logs)
+          echo "Agora credentials file: /tmp/agora-credentials.env" >> /tmp/eval-prompt.txt
+          echo "Before spawning each sub-agent, source this file so AGORA_APP_ID and AGORA_APP_CERTIFICATE are exported in the shell environment." >> /tmp/eval-prompt.txt
+          echo "Do NOT echo or log the credential values." >> /tmp/eval-prompt.txt
+          echo "" >> /tmp/eval-prompt.txt
 
           echo "Run parameters:" >> /tmp/eval-prompt.txt
           echo "- test repo path: $(pwd)" >> /tmp/eval-prompt.txt
