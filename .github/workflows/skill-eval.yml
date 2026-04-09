@@ -124,7 +124,16 @@ jobs:
           RUN_MODE: ${{ github.event.inputs.run_mode || 'single-run' }}
           VARIANT_A_URL: ${{ github.event.inputs.variant_a_url || '' }}
           VARIANT_B_URL: ${{ github.event.inputs.variant_b_url || '' }}
+          IS_PR: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
         run: |
+          # For PR triggers, default to e2e case only
+          EFFECTIVE_CASE_ID="${CASE_ID}"
+          EFFECTIVE_SUITE_IDS="${SUITE_IDS}"
+          if [ "$IS_PR" = "true" ] && [ -z "$EFFECTIVE_CASE_ID" ]; then
+            EFFECTIVE_CASE_ID="convoai-e2e-first-success"
+            EFFECTIVE_SUITE_IDS="workflow"
+          fi
+
           cat > /tmp/eval-prompt.txt << 'HEREDOC'
           You are the skill-eval evaluator agent.
 
@@ -141,6 +150,12 @@ jobs:
             bash .agents/skills/skills-evaluation/scripts/create_case_workspace.sh
           - Collect evidence from ~/.codex/sessions/ after each sub-agent completes.
           - Write all artifacts under runs/<run_id>/.
+
+          Timing requirements:
+          - Record wall-clock start and end timestamps (ISO 8601 UTC) for each case execution.
+          - In report.md, include a "## Timing" section with a table showing:
+            | case_id | started_at | completed_at | duration_s |
+          - In each case-results/<case_id>.json, include "started_at", "completed_at", and "duration_s" fields.
           HEREDOC
 
           echo "" >> /tmp/eval-prompt.txt
@@ -149,14 +164,14 @@ jobs:
           echo "- target_id: ${TARGET_ID}" >> /tmp/eval-prompt.txt
           echo "- run_mode: ${RUN_MODE}" >> /tmp/eval-prompt.txt
 
-          if [ "$SUITE_IDS" != "all" ]; then
-            echo "- suite_ids: ${SUITE_IDS}" >> /tmp/eval-prompt.txt
+          if [ "$EFFECTIVE_SUITE_IDS" != "all" ]; then
+            echo "- suite_ids: ${EFFECTIVE_SUITE_IDS}" >> /tmp/eval-prompt.txt
           else
             echo "- suite_ids: use target defaults" >> /tmp/eval-prompt.txt
           fi
 
-          if [ -n "$CASE_ID" ]; then
-            echo "- case_id: ${CASE_ID}" >> /tmp/eval-prompt.txt
+          if [ -n "$EFFECTIVE_CASE_ID" ]; then
+            echo "- case_id: ${EFFECTIVE_CASE_ID}" >> /tmp/eval-prompt.txt
           fi
 
           if [ "$RUN_MODE" = "ab-urls" ]; then
@@ -232,8 +247,8 @@ jobs:
           RUN_DIR="${{ steps.artifacts.outputs.run_dir }}"
           RESULTS_DIR="${RUN_DIR}/case-results"
           [ -d "$RESULTS_DIR" ] || { echo "::warning::No case-results"; exit 0; }
-          FAIL=$(grep -rl '"status": "fail"' "$RESULTS_DIR" 2>/dev/null | wc -l)
-          PASS=$(grep -rl '"status": "pass"' "$RESULTS_DIR" 2>/dev/null | wc -l)
-          BLOCKED=$(grep -rl '"status": "blocked"' "$RESULTS_DIR" 2>/dev/null | wc -l)
+          FAIL=$(grep -rl '"status": "fail"' "$RESULTS_DIR" 2>/dev/null | wc -l || true)
+          PASS=$(grep -rl '"status": "pass"' "$RESULTS_DIR" 2>/dev/null | wc -l || true)
+          BLOCKED=$(grep -rl '"status": "blocked"' "$RESULTS_DIR" 2>/dev/null | wc -l || true)
           echo "Results: ${PASS} pass, ${FAIL} fail, ${BLOCKED} blocked"
           [ "$FAIL" -gt 0 ] && { echo "::error::${FAIL} case(s) failed"; exit 1; }
