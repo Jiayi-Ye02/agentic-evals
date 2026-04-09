@@ -36,7 +36,7 @@ on:
         required: false
         default: ""
       skill_repo:
-        description: "GitHub URL of the skill repo to test (e.g. Jiayi-Ye02/agora-skills)"
+        description: "GitHub owner/repo of the skill repo (e.g. AgoraIO/skills)"
         required: false
         default: ""
       skill_repo_ref:
@@ -84,8 +84,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
-        with:
-          submodules: recursive
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -93,21 +91,24 @@ jobs:
           python-version: "3.12"
 
       - name: Sync external skill repo
-        if: github.event.inputs.skill_repo != ''
         env:
-          SKILL_REPO: ${{ github.event.inputs.skill_repo }}
+          SKILL_REPO: ${{ github.event.inputs.skill_repo || 'AgoraIO/skills' }}
           SKILL_REF: ${{ github.event.inputs.skill_repo_ref || 'main' }}
         run: |
+          if [ -d .agents/skills/agora ] && [ -f .agents/skills/agora/SKILL.md ]; then
+            echo "Agora skill already present, skipping sync"
+            exit 0
+          fi
           echo "Cloning skill repo: ${SKILL_REPO} @ ${SKILL_REF}"
           git clone "https://github.com/${SKILL_REPO}.git" /tmp/skill-repo
           git -C /tmp/skill-repo checkout "${SKILL_REF}"
-          # Copy skill files into the expected .agents/skills/agora/ location
           rm -rf .agents/skills/agora
           mkdir -p .agents/skills/agora
           if [ -d /tmp/skill-repo/skills/agora ]; then
             cp -r /tmp/skill-repo/skills/agora/* .agents/skills/agora/
           else
-            echo "::warning::skills/agora/ not found in skill repo"
+            echo "::error::skills/agora/ not found in skill repo ${SKILL_REPO}"
+            exit 1
           fi
           echo "Skill synced from ${SKILL_REPO}@${SKILL_REF}"
 
@@ -123,23 +124,23 @@ jobs:
           You are the skill-eval evaluator agent.
 
           Instructions:
-          1. Read agentic-evals/AGENT.md (canonical repo contract).
-          2. Read agentic-evals/.agents/skills/skills-evaluation/SKILL.md (operational instructions).
-          3. Read agentic-evals/docs/session-evidence.md (evidence contract).
+          1. Read AGENT.md (canonical repo contract).
+          2. Read .agents/skills/skills-evaluation/SKILL.md (operational instructions).
+          3. Read docs/session-evidence.md (evidence contract).
           4. Follow the SKILL.md workflow exactly.
 
           Key rules:
           - Use spawn_agent with fork_context: false for each case.
           - Do NOT use codex exec as a substitute for per-case execution.
           - Create isolated workspaces via the helper script:
-            bash agentic-evals/.agents/skills/skills-evaluation/scripts/create_case_workspace.sh
+            bash .agents/skills/skills-evaluation/scripts/create_case_workspace.sh
           - Collect evidence from ~/.codex/sessions/ after each sub-agent completes.
-          - Write all artifacts under agentic-evals/runs/<run_id>/.
+          - Write all artifacts under runs/<run_id>/.
           HEREDOC
 
           echo "" >> /tmp/eval-prompt.txt
           echo "Run parameters:" >> /tmp/eval-prompt.txt
-          echo "- test repo path: $(pwd)/agentic-evals" >> /tmp/eval-prompt.txt
+          echo "- test repo path: $(pwd)" >> /tmp/eval-prompt.txt
           echo "- target_id: ${TARGET_ID}" >> /tmp/eval-prompt.txt
           echo "- run_mode: ${RUN_MODE}" >> /tmp/eval-prompt.txt
 
@@ -161,14 +162,6 @@ jobs:
           echo "" >> /tmp/eval-prompt.txt
           echo "Begin the evaluation now." >> /tmp/eval-prompt.txt
 
-      # codex-action 安装 Codex CLI 并启动 API proxy。
-      # 底层用 codex exec 运行 evaluator prompt。
-      # evaluator agent 内部用 spawn_agent 为每个 case 创建子 agent。
-      # 已验证：codex exec 环境中 spawn_agent (collab) 可用。
-      #
-      # sandbox=danger-full-access 因为：
-      #   - evaluator 需要创建 temp 目录和写 ~/.codex/
-      #   - sub-agent 需要 git clone、npm install 等网络操作
       - name: Run Codex evaluator
         id: run_codex
         uses: openai/codex-action@v1
@@ -181,7 +174,7 @@ jobs:
       - name: Locate run artifacts
         id: artifacts
         run: |
-          LATEST_RUN=$(ls -td agentic-evals/runs/run-* 2>/dev/null | head -1)
+          LATEST_RUN=$(ls -td runs/run-* 2>/dev/null | head -1)
           if [ -z "$LATEST_RUN" ]; then
             echo "::warning::No run directory found"
             echo "run_found=false" >> "$GITHUB_OUTPUT"
