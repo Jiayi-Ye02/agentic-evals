@@ -186,6 +186,9 @@ jobs:
       - name: Run Codex evaluator
         id: run_codex
         uses: openai/codex-action@v1
+        env:
+          AGORA_APP_ID: ${{ secrets.AGORA_APP_ID }}
+          AGORA_APP_CERTIFICATE: ${{ secrets.AGORA_APP_CERTIFICATE }}
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           responses-api-endpoint: ${{ secrets.RESPONSES_API_ENDPOINT }}
