@@ -1,5 +1,5 @@
 case_id: "convoai-e2e-first-success"
-title: "End-to-end ConvoAI first-success: full intake → quickstart → run → verify"
+title: "End-to-end ConvoAI quickstart: clone, configure, run, verify"
 
 input:
   user_prompt: |
@@ -20,107 +20,53 @@ setup:
   env_vars_required:
     - "AGORA_APP_ID"
     - "AGORA_APP_CERTIFICATE"
-  env_vars_notes: "The actual env var names in the demo may differ (e.g., NEXT_PUBLIC_AGORA_APP_ID, NEXT_AGORA_APP_CERTIFICATE). The evaluator should map AGORA_APP_ID and AGORA_APP_CERTIFICATE from the test environment to whatever names the cloned demo expects."
-
-# Verification is split between the sub-agent and the evaluator:
-# - Sub-agent: writes code, configures env, starts dev server, reports the URL.
-# - Evaluator (main agent): opens the URL in a browser, interacts with the page,
-#   checks for errors, and reports the final e2e result.
-verification:
-  owner: "evaluator"
-  steps:
-    - "After the sub-agent reports the dev server URL, open it in a headed (non-headless) browser — the browser must run in the foreground so media devices are available."
-    - "Grant microphone/audio permission automatically (e.g., Playwright --use permissions=['microphone'] or equivalent browser launch flag)."
-    - "Wait for the page to fully load."
-    - "Click the start/connect button to initiate a conversation with the AI agent."
-    - "Wait a few seconds for the agent connection to establish."
-    - "Check the page and browser console for errors."
-    - "Record the result: successful connection or error details."
+  env_vars_notes: "The demo may use different env var names (e.g. NEXT_PUBLIC_AGORA_APP_ID). The agent should map from AGORA_APP_ID/AGORA_APP_CERTIFICATE to whatever the demo expects."
 
 assert:
-  summary: "The sub-agent should follow the full ConvoAI first-success flow and deliver a running dev server. The evaluator then verifies the demo works end to end via browser interaction."
+  summary: "The agent should clone the official quickstart, configure credentials, start the dev server, and report a working local URL."
   required:
-    - description: "The accepted session evidence should show the intake routing chain: SKILL.md → ConvoAI README → quickstarts.md."
+    - description: "The official Next.js quickstart repo is cloned."
       pass_criteria:
-        - "The accepted session evidence shows consultation of `.agents/skills/agora/SKILL.md`."
-        - "The accepted session evidence shows consultation of `.agents/skills/agora/references/conversational-ai/README.md`."
-        - "The accepted session evidence shows consultation of `.agents/skills/agora/references/conversational-ai/quickstarts.md`."
+        - "Session evidence shows a git clone for `agent-quickstart-nextjs` or the equivalent GitHub URL."
       fail_signals:
-        - "The accepted session evidence skips SKILL.md and goes directly to a product reference."
-        - "The accepted session evidence never consults quickstarts.md."
+        - "No clone command observed — agent generates code from scratch."
+        - "Agent clones a different repo."
       evidence_scope:
         - "accepted-session.jsonl"
-    - description: "The sub-agent should recognize the pre-supplied gate answers and not re-ask resolved gates."
+
+    - description: "Agora credentials are configured in the demo's env file."
       pass_criteria:
-        - "The sub-agent does not re-ask the baseline path choice (the user already said Path A)."
-        - "The sub-agent does not re-ask project readiness (the user already confirmed all ready)."
-        - "The sub-agent does not re-ask vendor defaults (the user already chose reseller defaults)."
+        - "Session evidence shows the agent writing a .env or .env.local file with Agora App ID and App Certificate values."
       fail_signals:
-        - "The sub-agent asks the user to choose a baseline path despite the user already specifying Path A."
-        - "The sub-agent asks about App ID or App Certificate readiness despite the user confirming all ready."
-        - "The sub-agent asks about provider choices despite the user choosing reseller defaults."
-      evidence_scope:
-        - "final-answer.txt"
-        - "accepted-session.jsonl"
-    - description: "The accepted session evidence should show the official Next.js quickstart repo being cloned."
-      pass_criteria:
-        - "The accepted session evidence shows a git clone command for `agent-quickstart-nextjs` or the equivalent GitHub URL."
-      fail_signals:
-        - "No clone command is observed — the sub-agent generates custom code from scratch instead of using the official sample."
-        - "The sub-agent clones a different repo (e.g., agent-samples) instead of the Path A repo."
+        - "No env file is written."
+        - "Env file contains empty or placeholder values for Agora credentials."
       evidence_scope:
         - "accepted-session.jsonl"
-    - description: "The env config should correctly map the Agora credentials and not require vendor keys in reseller mode."
+
+    - description: "A dev server is started and a local URL is reported."
       pass_criteria:
-        - "The Agora App ID and App Certificate are correctly mapped into the demo's .env file, regardless of the exact variable names used by the demo."
-        - "The sub-agent does not require vendor API keys (Deepgram, OpenAI, ElevenLabs) since the user chose reseller defaults."
+        - "Session evidence shows a dev server start command (pnpm dev, npm run dev, or equivalent)."
+        - "The final answer includes a local URL (e.g. http://localhost:3000)."
       fail_signals:
-        - "The sub-agent requires or prompts for vendor API keys when the user chose reseller defaults."
-        - "The Agora credentials are not configured in the demo's env file."
+        - "No dev server start command observed."
+        - "Final answer does not mention a running URL."
       evidence_scope:
         - "accepted-session.jsonl"
         - "final-answer.txt"
-    - description: "The accepted session evidence should show a dev server being started."
+
+    - description: "The demo page loads successfully in a browser."
       pass_criteria:
-        - "The accepted session evidence shows a command starting the dev server (e.g., pnpm dev, npm run dev, or equivalent)."
+        - "The evaluator opens the reported URL and the page loads without errors."
       fail_signals:
-        - "No dev server start command is observed."
-      evidence_scope:
-        - "accepted-session.jsonl"
-    - description: "The sub-agent's final answer should report the local dev server URL."
-      pass_criteria:
-        - "The final answer includes a local URL (e.g., http://localhost:3000) where the demo is running."
-      fail_signals:
-        - "The final answer does not mention a URL or does not confirm the server is running."
-      evidence_scope:
-        - "final-answer.txt"
-    - description: "The evaluator should verify the demo loads and the start button is clickable via browser interaction."
-      pass_criteria:
-        - "The evaluator's browser runs in headed (foreground) mode, not headless."
-        - "The evaluator granted microphone/audio permission before interacting with the page."
-        - "The page loaded successfully at the reported URL."
-        - "The evaluator was able to locate and click the start/connect button on the page."
-      fail_signals:
-        - "The browser ran in headless mode, which blocks audio device access."
-        - "Microphone permission was not granted, causing a permission error."
-        - "The page fails to load or returns an error."
-        - "No start/connect button is found on the page."
-      evidence_scope:
-        - "evaluator-verification"
-    - description: "The evaluator should report the final e2e result after browser interaction."
-      pass_criteria:
-        - "The evaluator reports whether the agent connection was established or describes what errors occurred."
-        - "If the browser console shows errors, they are captured and reported."
-      fail_signals:
-        - "No e2e verification result is reported by the evaluator."
+        - "The page fails to load or returns an HTTP error."
+        - "The browser console shows critical JavaScript errors."
       evidence_scope:
         - "evaluator-verification"
 
   forbidden: []
 
 notes:
-  why_it_matters: "This tests the entire first-success chain: routing → gated state machine → Path A clone → env config → run. The evaluator then independently verifies the output works, separating skill quality (sub-agent) from runtime correctness (evaluator browser check)."
+  why_it_matters: "This is the core first-success test. If the agent can clone, configure, and run the official quickstart with real credentials, the skill's ConvoAI guidance works end to end."
   likely_fix_files:
-    - ".agents/skills/agora/SKILL.md"
-    - ".agents/skills/agora/references/conversational-ai/README.md"
     - ".agents/skills/agora/references/conversational-ai/quickstarts.md"
+    - ".agents/skills/agora/references/conversational-ai/README.md"

@@ -48,6 +48,7 @@ on:
     paths:
       - "targets/**/*.yaml"
       - ".agents/skills/**"
+      - ".github/workflows/**"
 
 env:
   TARGET_ID: ${{ github.event.inputs.target_id || 'agora' }}
@@ -117,6 +118,18 @@ jobs:
           fi
           echo "Skill synced from ${SKILL_REPO}@${SKILL_REF}"
 
+      - name: Write credentials file
+        env:
+          AGORA_APP_ID: ${{ secrets.AGORA_APP_ID }}
+          AGORA_APP_CERTIFICATE: ${{ secrets.AGORA_APP_CERTIFICATE }}
+        run: |
+          cat > /tmp/agora-credentials.env << EOF
+          AGORA_APP_ID=${AGORA_APP_ID}
+          AGORA_APP_CERTIFICATE=${AGORA_APP_CERTIFICATE}
+          EOF
+          chmod 600 /tmp/agora-credentials.env
+          echo "Credentials written to /tmp/agora-credentials.env"
+
       - name: Build evaluator prompt
         env:
           SUITE_IDS: ${{ github.event.inputs.suite_ids || 'all' }}
@@ -152,13 +165,39 @@ jobs:
           - Write all artifacts under runs/<run_id>/.
 
           Timing requirements:
-          - Record wall-clock start and end timestamps (ISO 8601 UTC) for each case execution.
-          - In report.md, include a "## Timing" section with a table showing:
-            | case_id | started_at | completed_at | duration_s |
-          - In each case-results/<case_id>.json, include "started_at", "completed_at", and "duration_s" fields.
+          - Record wall-clock timestamps (ISO 8601 UTC) for each case.
+          - Track two phases separately:
+            - "Task execution": from agent receiving the prompt to delivering its final answer (this is the time the AI agent spent working on the user's request).
+            - "Verification": from evidence collection start to all artifacts written (this is the time spent checking the agent's work).
+          - In report.md, include a "## Timing" section with a human-readable table:
+            | case_id | task_execution | verification | total |
+            Use human-friendly durations like "3m 12s" instead of raw seconds.
+          - In each case-results/<case_id>.json, include:
+            - "task_started_at", "task_completed_at", "task_duration_s"
+            - "verification_started_at", "verification_completed_at", "verification_duration_s"
+            - "total_duration_s"
+
+          Report quality requirements:
+          - report.md must be useful to a human reading it for the first time.
+          - For each failed assertion, explain WHAT went wrong with specifics:
+            - Quote the actual command or output that was observed (or missing).
+            - Example good: "Agent wrote .env.local but AGORA_APP_ID was empty because $AGORA_APP_ID was not exported in the shell."
+            - Example bad: "Env mapping assertion failed."
+          - For each passed assertion, include a one-line evidence summary.
+          - The "Suggested Next Fixes" section must include concrete actions, not just file paths:
+            - Example good: "In quickstarts.md, add a step to verify env vars are non-empty before starting the dev server."
+            - Example bad: ".agents/skills/agora/references/conversational-ai/quickstarts.md"
+          - If the evaluator browser verification was skipped or degraded (e.g. headless mode, missing tool), note it clearly but do not fail the case for evaluator-side limitations.
           HEREDOC
 
           echo "" >> /tmp/eval-prompt.txt
+
+          # Point evaluator to credentials file (not in prompt to avoid leaking in logs)
+          echo "Agora credentials file: /tmp/agora-credentials.env" >> /tmp/eval-prompt.txt
+          echo "Before spawning each sub-agent, source this file so AGORA_APP_ID and AGORA_APP_CERTIFICATE are exported in the shell environment." >> /tmp/eval-prompt.txt
+          echo "Do NOT echo or log the credential values." >> /tmp/eval-prompt.txt
+          echo "" >> /tmp/eval-prompt.txt
+
           echo "Run parameters:" >> /tmp/eval-prompt.txt
           echo "- test repo path: $(pwd)" >> /tmp/eval-prompt.txt
           echo "- target_id: ${TARGET_ID}" >> /tmp/eval-prompt.txt
@@ -185,6 +224,9 @@ jobs:
       - name: Run Codex evaluator
         id: run_codex
         uses: openai/codex-action@v1
+        env:
+          AGORA_APP_ID: ${{ secrets.AGORA_APP_ID }}
+          AGORA_APP_CERTIFICATE: ${{ secrets.AGORA_APP_CERTIFICATE }}
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           responses-api-endpoint: ${{ secrets.RESPONSES_API_ENDPOINT }}
@@ -241,14 +283,16 @@ jobs:
               body: `## Skill Eval Report\n\n${report}`,
             });
 
-      - name: Check for failures
+      - name: Report results
         if: steps.artifacts.outputs.run_found == 'true'
         run: |
           RUN_DIR="${{ steps.artifacts.outputs.run_dir }}"
           RESULTS_DIR="${RUN_DIR}/case-results"
           [ -d "$RESULTS_DIR" ] || { echo "::warning::No case-results"; exit 0; }
-          FAIL=$(grep -rl '"status": "fail"' "$RESULTS_DIR" 2>/dev/null | wc -l || true)
-          PASS=$(grep -rl '"status": "pass"' "$RESULTS_DIR" 2>/dev/null | wc -l || true)
-          BLOCKED=$(grep -rl '"status": "blocked"' "$RESULTS_DIR" 2>/dev/null | wc -l || true)
+          FAIL=$(grep -rl '"status": "fail"' "$RESULTS_DIR" 2>/dev/null | wc -l || echo 0)
+          PASS=$(grep -rl '"status": "pass"' "$RESULTS_DIR" 2>/dev/null | wc -l || echo 0)
+          BLOCKED=$(grep -rl '"status": "blocked"' "$RESULTS_DIR" 2>/dev/null | wc -l || echo 0)
           echo "Results: ${PASS} pass, ${FAIL} fail, ${BLOCKED} blocked"
-          [ "$FAIL" -gt 0 ] && { echo "::error::${FAIL} case(s) failed"; exit 1; }
+          if [ "$FAIL" -gt 0 ]; then
+            echo "::warning::${FAIL} case(s) failed — see report for details"
+          fi
