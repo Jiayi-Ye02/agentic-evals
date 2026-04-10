@@ -188,6 +188,13 @@ jobs:
             - Example good: "In quickstarts.md, add a step to verify env vars are non-empty before starting the dev server."
             - Example bad: ".agents/skills/agora/references/conversational-ai/quickstarts.md"
           - If the evaluator browser verification was skipped or degraded (e.g. headless mode, missing tool), note it clearly but do not fail the case for evaluator-side limitations.
+
+          Screenshot requirements:
+          - When performing browser verification, save screenshots to case-artifacts/<case_id>/:
+            - page-loaded.png: after the page finishes loading
+            - conversation-active.png: AFTER clicking start AND waiting for the conversation to be active with visible transcript/subtitles. Wait at least 10 seconds after clicking start to allow the agent connection to establish and transcript text to appear. The screenshot must show the conversation UI with subtitle or transcript content visible.
+          - Use agent-browser screenshot commands to capture these.
+          - If screenshots cannot be taken, note it in the case result but do not fail the case.
           HEREDOC
 
           echo "" >> /tmp/eval-prompt.txt
@@ -271,16 +278,19 @@ jobs:
         uses: actions/github-script@v7
         env:
           REPORT_PATH: ${{ steps.artifacts.outputs.run_dir }}/report.md
+          ARTIFACT_NAME: eval-run-${{ env.TARGET_ID }}-${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           github-token: ${{ github.token }}
           script: |
             const fs = require('fs');
             const report = fs.readFileSync(process.env.REPORT_PATH, 'utf8');
+            const artifactLink = `[📦 Download artifacts (screenshots included)](${process.env.RUN_URL})`;
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.payload.pull_request.number,
-              body: `## Skill Eval Report\n\n${report}`,
+              body: `## Skill Eval Report\n\n${report}\n\n---\n${artifactLink}`,
             });
 
       - name: Report results

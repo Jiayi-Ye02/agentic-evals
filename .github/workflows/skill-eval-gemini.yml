@@ -1,0 +1,223 @@
+name: Skill Evaluation (Gemini CLI)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_id:
+        description: "Target to evaluate (e.g. agora)"
+        required: true
+        default: "agora"
+      suite_ids:
+        description: "Comma-separated suite IDs, or 'all' for defaults"
+        required: false
+        default: "all"
+      case_id:
+        description: "Single case ID (leave empty for full suite)"
+        required: false
+        default: ""
+      model:
+        description: "Gemini model"
+        required: false
+        default: ""
+      skill_repo:
+        description: "GitHub owner/repo of the skill repo"
+        required: false
+        default: ""
+      skill_repo_ref:
+        description: "Git ref of the skill repo"
+        required: false
+        default: ""
+
+  pull_request:
+    paths:
+      - "targets/**/*.yaml"
+      - ".agents/skills/**"
+      - ".github/workflows/**"
+
+env:
+  TARGET_ID: ${{ github.event.inputs.target_id || 'agora' }}
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+      - name: Validate YAML
+        run: |
+          ruby -e '
+            require "yaml"
+            tid = ENV.fetch("TARGET_ID", "agora")
+            Dir["targets/#{tid}/cases/*/suite.yaml"].sort.each { |f| YAML.load_file(f) }
+            Dir["targets/#{tid}/cases/**/*.yaml"].sort.reject { |f| f.end_with?("suite.yaml") }.each { |f| YAML.load_file(f) }
+            YAML.load_file("targets/#{tid}/target.yaml")
+            puts "yaml-ok"
+          '
+
+  evaluate:
+    needs: validate
+    runs-on: macos-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install pyyaml
+          npm install -g agent-browser @google/gemini-cli
+          gemini --version
+
+      - name: Sync skill repo
+        env:
+          SKILL_REPO: ${{ github.event.inputs.skill_repo || 'AgoraIO/skills' }}
+          SKILL_REF: ${{ github.event.inputs.skill_repo_ref || 'main' }}
+        run: |
+          if [ -f .agents/skills/agora/SKILL.md ]; then
+            echo "Agora skill present, skipping"
+            exit 0
+          fi
+          git clone "https://github.com/${SKILL_REPO}.git" /tmp/skill-repo
+          git -C /tmp/skill-repo checkout "${SKILL_REF}"
+          rm -rf .agents/skills/agora && mkdir -p .agents/skills/agora
+          cp -r /tmp/skill-repo/skills/agora/* .agents/skills/agora/
+
+      - name: Write credentials
+        env:
+          AGORA_APP_ID: ${{ secrets.AGORA_APP_ID }}
+          AGORA_APP_CERTIFICATE: ${{ secrets.AGORA_APP_CERTIFICATE }}
+        run: |
+          printf 'export AGORA_APP_ID="%s"\nexport AGORA_APP_CERTIFICATE="%s"\n' \
+            "$AGORA_APP_ID" "$AGORA_APP_CERTIFICATE" > /tmp/agora-credentials.env
+          chmod 600 /tmp/agora-credentials.env
+
+      - name: Resolve cases
+        id: resolve
+        env:
+          SUITE_IDS: ${{ github.event.inputs.suite_ids || 'all' }}
+          CASE_ID: ${{ github.event.inputs.case_id || '' }}
+          IS_PR: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
+        run: |
+          python3 - << 'PY'
+          import yaml, json, os, datetime
+          target_id = os.environ["TARGET_ID"]
+          suite_ids = os.environ.get("SUITE_IDS", "all")
+          case_id = os.environ.get("CASE_ID", "")
+          is_pr = os.environ.get("IS_PR", "false")
+          if is_pr == "true" and not case_id:
+              case_id = "convoai-e2e-first-success"
+              suite_ids = "workflow"
+          target = yaml.safe_load(open(f"targets/{target_id}/target.yaml"))
+          if suite_ids == "all":
+              suite_ids = target["default_suites"]
+          else:
+              suite_ids = [s.strip() for s in suite_ids.split(",")]
+          cases = []
+          for sid in suite_ids:
+              suite = yaml.safe_load(open(f"targets/{target_id}/cases/{sid}/suite.yaml"))
+              for cp in suite["cases"]:
+                  c = yaml.safe_load(open(cp))
+                  if case_id and c["case_id"] != case_id:
+                      continue
+                  cases.append({"case_id": c["case_id"], "path": cp, "user_prompt": c["input"]["user_prompt"]})
+          now = datetime.datetime.now(datetime.timezone.utc)
+          run_id = f"gemini-{now.strftime('%Y%m%dT%H%M%SZ')}"
+          run_dir = f"runs/{run_id}"
+          os.makedirs(f"{run_dir}/case-artifacts", exist_ok=True)
+          os.makedirs(f"{run_dir}/case-results", exist_ok=True)
+          manifest = {"run_mode": "single-run", "run_id": run_id, "runtime": "gemini-cli",
+                      "target_id": target_id, "suite_ids": suite_ids,
+                      "case_ids": [c["case_id"] for c in cases],
+                      "started_at": now.isoformat(), "evidence_mode": "gemini-cli-two-phase"}
+          json.dump(manifest, open(f"{run_dir}/manifest.json", "w"), indent=2)
+          # Write cases to a temp file to avoid GITHUB_OUTPUT multiline issues
+          json.dump(cases, open("/tmp/gemini-eval-cases.json", "w"))
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write(f"run_id={run_id}\n")
+              out.write(f"run_dir={run_dir}\n")
+          print(f"Resolved {len(cases)} cases -> {run_dir}")
+          PY
+
+      - name: Run two-phase evaluation
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          AGORA_APP_ID: ${{ secrets.AGORA_APP_ID }}
+          AGORA_APP_CERTIFICATE: ${{ secrets.AGORA_APP_CERTIFICATE }}
+          RUN_DIR: ${{ steps.resolve.outputs.run_dir }}
+          GEMINI_MODEL: ${{ github.event.inputs.model || '' }}
+        run: |
+          source /tmp/agora-credentials.env
+          python3 scripts/run_gemini_eval.py
+
+      - name: Generate report
+        if: always()
+        env:
+          RUN_DIR: ${{ steps.resolve.outputs.run_dir }}
+        run: |
+          python3 scripts/generate_report.py
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-run-gemini-${{ env.TARGET_ID }}-${{ github.run_id }}
+          path: ${{ steps.resolve.outputs.run_dir }}
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Post report to job summary
+        if: always()
+        env:
+          RUN_DIR: ${{ steps.resolve.outputs.run_dir }}
+        run: |
+          REPORT="${RUN_DIR}/report.md"
+          if [ -f "$REPORT" ]; then
+            echo "## Skill Eval Report (Gemini CLI)" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            cat "$REPORT" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::report.md not found"
+          fi
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        env:
+          RUN_DIR: ${{ steps.resolve.outputs.run_dir }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const fs = require('fs');
+            const reportPath = `${process.env.RUN_DIR}/report.md`;
+            if (!fs.existsSync(reportPath)) return;
+            const report = fs.readFileSync(reportPath, 'utf8');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: `## Skill Eval Report (Gemini CLI)\n\n${report}\n\n---\n[Download artifacts](${process.env.RUN_URL})`,
+            });
+
+      - name: Report results
+        if: always()
+        env:
+          RUN_DIR: ${{ steps.resolve.outputs.run_dir }}
+        run: |
+          RESULTS_DIR="${RUN_DIR}/case-results"
+          [ -d "$RESULTS_DIR" ] || { echo "::warning::No case-results"; exit 0; }
+          FAIL=$(grep -rl '"status": "fail"' "$RESULTS_DIR" 2>/dev/null | wc -l || echo 0)
+          PASS=$(grep -rl '"status": "pass"' "$RESULTS_DIR" 2>/dev/null | wc -l || echo 0)
+          BLOCKED=$(grep -rl '"status": "blocked"' "$RESULTS_DIR" 2>/dev/null | wc -l || echo 0)
+          echo "Results: ${PASS} pass, ${FAIL} fail, ${BLOCKED} blocked"
