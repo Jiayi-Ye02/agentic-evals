@@ -1,0 +1,128 @@
+name: Skill Quality Review
+
+on:
+  workflow_dispatch:
+    inputs:
+      skill_path:
+        description: "Path to skill to evaluate (e.g. .agents/skills/agora)"
+        required: false
+        default: ".agents/skills/agora"
+      skill_repo:
+        description: "GitHub owner/repo of the skill repo (e.g. AgoraIO/skills)"
+        required: false
+        default: ""
+      skill_repo_ref:
+        description: "Git ref of the skill repo"
+        required: false
+        default: ""
+
+  pull_request:
+    paths:
+      - ".agents/skills/**"
+
+jobs:
+  judge:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Sync external skill repo
+        env:
+          SKILL_REPO: ${{ github.event.inputs.skill_repo || 'AgoraIO/skills' }}
+          SKILL_REF: ${{ github.event.inputs.skill_repo_ref || 'main' }}
+        run: |
+          if [ -d .agents/skills/agora ] && [ -f .agents/skills/agora/SKILL.md ]; then
+            echo "Agora skill already present, skipping sync"
+            exit 0
+          fi
+          git clone "https://github.com/${SKILL_REPO}.git" /tmp/skill-repo
+          git -C /tmp/skill-repo checkout "${SKILL_REF}"
+          rm -rf .agents/skills/agora
+          mkdir -p .agents/skills/agora
+          cp -r /tmp/skill-repo/skills/agora/* .agents/skills/agora/
+
+      - name: Build judge prompt
+        env:
+          SKILL_PATH: ${{ github.event.inputs.skill_path || '.agents/skills/agora' }}
+        run: |
+          # Find all SKILL.md files under the target path
+          SKILL_FILES=$(find "$SKILL_PATH" -name "SKILL.md" -type f | sort)
+          FILE_COUNT=$(echo "$SKILL_FILES" | wc -l | tr -d ' ')
+
+          cat > /tmp/judge-prompt.txt << HEREDOC
+          You have the skill-judge skill loaded. Use it now.
+
+          Evaluate ALL SKILL.md files under ${SKILL_PATH}. There are ${FILE_COUNT} SKILL.md files to evaluate.
+
+          For each SKILL.md file found:
+          1. Read the file completely.
+          2. Follow the skill-judge evaluation protocol exactly (all 8 dimensions).
+          3. Generate the full structured report as defined in skill-judge.
+
+          After evaluating each file individually, write a combined report to skill-judge-report.md with:
+          - A summary table of all skills evaluated with their scores and grades.
+          - Individual evaluation reports for each skill.
+          - A "Cross-Skill Observations" section noting common patterns or issues.
+          - A "Priority Improvements" section with the top 5 highest-impact changes across all skills.
+
+          The SKILL.md files to evaluate:
+          $(echo "$SKILL_FILES" | while read f; do echo "- $f"; done)
+
+          Begin the evaluation now. Write the report to skill-judge-report.md in the repo root.
+          HEREDOC
+
+      - name: Run Codex judge
+        id: run_codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          responses-api-endpoint: ${{ secrets.RESPONSES_API_ENDPOINT }}
+          prompt-file: /tmp/judge-prompt.txt
+          sandbox: danger-full-access
+          model: ${{ github.event.inputs.model || '' }}
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: skill-judge-report-${{ github.run_id }}
+          path: skill-judge-report.md
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Post report to job summary
+        if: always()
+        run: |
+          if [ -f skill-judge-report.md ]; then
+            echo "## Skill Quality Review" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            cat skill-judge-report.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::skill-judge-report.md not found"
+          fi
+
+      - name: Post report as PR comment
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const fs = require('fs');
+            const path = 'skill-judge-report.md';
+            if (!fs.existsSync(path)) {
+              console.log('No report file found');
+              return;
+            }
+            const report = fs.readFileSync(path, 'utf8');
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: `## Skill Quality Review\n\n${report}\n\n---\n[View run](${runUrl})`,
+            });
