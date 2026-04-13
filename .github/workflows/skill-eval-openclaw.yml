@@ -119,7 +119,8 @@ jobs:
                 "token": "${GATEWAY_TOKEN}"
               },
               "port": 18789,
-              "bind": "loopback"
+              "bind": "loopback",
+              "bonjour": false
             }
           }
           EOF
@@ -143,6 +144,9 @@ jobs:
 
       - name: Start OpenClaw gateway
         run: |
+          # Disable Bonjour/mDNS to avoid hostname length crash on CI runners
+          export OPENCLAW_DISABLE_BONJOUR=1
+          export OPENCLAW_HIDE_BANNER=1
           openclaw gateway &
           GATEWAY_PID=$!
           echo "GATEWAY_PID=${GATEWAY_PID}" >> "$GITHUB_ENV"
