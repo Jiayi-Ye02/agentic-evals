@@ -97,7 +97,7 @@ jobs:
                 "maxConcurrent": 4,
                 "workspace": "$HOME/openclaw-workspace",
                 "model": {
-                  "primary": "${OPENCLAW_MODEL}"
+                  "primary": "openai/gpt-4o"
                 }
               }
             },
@@ -106,7 +106,10 @@ jobs:
                 "openai": {
                   "baseUrl": "${BASE_URL}",
                   "apiKey": "${OPENAI_API_KEY}",
-                  "api": "openai-responses"
+                  "api": "openai-responses",
+                  "models": [
+                    { "id": "openai/gpt-4o", "contextWindow": 200000, "maxTokens": 16384 }
+                  ]
                 }
               }
             },
