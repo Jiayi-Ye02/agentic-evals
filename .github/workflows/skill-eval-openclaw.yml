@@ -258,6 +258,13 @@ jobs:
           acpx --approve-all openclaw exec "say hello" 2>&1 | tail -5
           echo "Connection verified"
 
+      - name: Configure git for non-interactive clone
+        run: |
+          git config --global credential.helper ""
+          git config --global GIT_TERMINAL_PROMPT 0
+          export GIT_TERMINAL_PROMPT=0
+          echo "GIT_TERMINAL_PROMPT=0" >> "$GITHUB_ENV"
+
       - name: Run two-phase evaluation
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
