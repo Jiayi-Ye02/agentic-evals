@@ -35,7 +35,10 @@ def run_evaluator(prompt, timeout=300):
     codex_home.mkdir(exist_ok=True)
     endpoint = os.environ.get("RESPONSES_API_ENDPOINT", "")
     if endpoint:
-        base_url = endpoint.replace("/v1/responses", "").rstrip("/")
+        # Codex appends /responses to base_url, so we need base_url to end with /v1
+        # RESPONSES_API_ENDPOINT = http://host:port/v1/responses
+        # base_url should be = http://host:port/v1
+        base_url = endpoint.replace("/responses", "").rstrip("/")
         config = (
             'model_provider = "OpenAI"\n'
             'model = "gpt-5.4"\n'
@@ -48,6 +51,11 @@ def run_evaluator(prompt, timeout=300):
             'requires_openai_auth = true\n'
         )
         (codex_home / "config.toml").write_text(config)
+        # Also write auth.json so Codex has the API key
+        api_key = os.environ.get("OPENAI_API_KEY", "")
+        if api_key:
+            auth = json.dumps({"auth_mode": "apikey", "OPENAI_API_KEY": api_key})
+            (codex_home / "auth.json").write_text(auth)
 
     cmd = ["codex", "exec", "--skip-git-repo-check", "--sandbox", "danger-full-access",
            "--output-last-message", "/tmp/codex-eval-output.md"]
