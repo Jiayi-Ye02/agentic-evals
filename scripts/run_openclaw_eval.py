@@ -161,6 +161,7 @@ for case in cases:
         f"- Treat {attempt_ws} as your only workspace.\n"
         f"- Keep all file reads, writes, and shell commands inside it.\n"
         f"- The environment variables AGORA_APP_ID and AGORA_APP_CERTIFICATE are set and available via $AGORA_APP_ID and $AGORA_APP_CERTIFICATE in shell commands.\n"
+        f"- If git clone over HTTPS fails, use tarball download instead: curl -L https://github.com/OWNER/REPO/archive/refs/heads/main.tar.gz | tar xz\n"
         f"- Give the exact answer you would send to the user."
     )
 
