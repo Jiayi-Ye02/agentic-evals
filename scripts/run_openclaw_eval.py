@@ -11,24 +11,30 @@ def now():
     return datetime.datetime.now(datetime.timezone.utc)
 
 def run_openclaw(prompt, timeout=600, label="agent"):
-    """Run a prompt via acpx openclaw exec with a unique session label."""
-    # Each call gets a unique session to ensure full isolation
-    session_label = f"eval-{label}-{datetime.datetime.now().strftime('%H%M%S')}"
+    """Run a prompt via acpx openclaw exec with isolation."""
     cmd = [
         "acpx", "--approve-all", "--format", "json",
         "openclaw", "exec", prompt,
     ]
-    print(f"  [{label}] Running acpx with session isolation...")
+    print(f"  [{label}] Running acpx openclaw exec...")
     try:
         result = subprocess.run(
             cmd, stdout=subprocess.PIPE, stderr=None,
             text=True, timeout=timeout,
-            env={**os.environ}  # inherit all env vars including AGORA credentials
+            env={**os.environ}
         )
         return result.stdout, result.returncode
     except subprocess.TimeoutExpired:
         print(f"  [{label}] TIMEOUT after {timeout}s")
         return json.dumps({"error": f"TIMEOUT after {timeout}s"}), -1
+
+def reset_openclaw_session():
+    """Reset the OpenClaw session to ensure evaluator gets a clean context."""
+    print("  Resetting OpenClaw session...")
+    subprocess.run(
+        ["acpx", "--approve-all", "openclaw", "sessions", "new"],
+        capture_output=True, text=True, timeout=30
+    )
 
 def extract_response_text(raw_json):
     """Extract the agent's text response from acpx NDJSON output."""
@@ -134,6 +140,8 @@ for case in cases:
     print(f"Workspace files ({ws_files.count(chr(10))} files):\n{ws_files[:500]}")
 
     # --- Phase 2: Evaluator Agent ---
+    # Reset session so evaluator gets clean context (not polluted by task agent)
+    reset_openclaw_session()
     t2_start = now()
     print(f"\n--- Phase 2: Evaluator ({t2_start.isoformat()}) ---")
 
