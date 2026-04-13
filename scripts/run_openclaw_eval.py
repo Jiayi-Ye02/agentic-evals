@@ -11,12 +11,17 @@ def now():
     return datetime.datetime.now(datetime.timezone.utc)
 
 def run_openclaw(prompt, timeout=600, label="agent"):
-    """Run a prompt via acpx openclaw exec with isolation."""
-    cmd = [
-        "acpx", "--approve-all", "--format", "json",
-        "openclaw", "exec", prompt,
-    ]
-    print(f"  [{label}] Running acpx openclaw exec...")
+    """Run a prompt via acpx openclaw with persistent session for full tool access."""
+    print(f"  [{label}] Creating new session and sending prompt...")
+    
+    # Step 1: Ensure a session exists
+    subprocess.run(
+        ["acpx", "--approve-all", "openclaw", "sessions", "ensure"],
+        capture_output=True, text=True, timeout=30
+    )
+    
+    # Step 2: Send prompt to the session (not exec)
+    cmd = ["acpx", "--approve-all", "--format", "json", "openclaw", "prompt", prompt]
     try:
         result = subprocess.run(
             cmd, stdout=subprocess.PIPE, stderr=None,
@@ -145,6 +150,13 @@ for case in cases:
     print(f"Workspace: {attempt_ws}")
 
     # --- Phase 1: Task Agent ---
+    # Reset session for clean state
+    subprocess.run(
+        ["acpx", "--approve-all", "openclaw", "sessions", "new"],
+        capture_output=True, text=True, timeout=30
+    )
+    import time
+    time.sleep(3)
     t1_start = now()
     print(f"\n--- Phase 1: Task Agent ({t1_start.isoformat()}) ---")
 
