@@ -105,12 +105,15 @@ for case in cases:
     # Include env var hint in prompt so agent knows they're available
     task_prompt = (
         f"You are working in workspace: {attempt_ws}\n\n"
+        f"IMPORTANT: Before starting, read the skill documentation files in your workspace:\n"
+        f"  1. First read: {attempt_ws}/.agents/skills/agora/SKILL.md\n"
+        f"  2. Then follow its routing instructions to find the right product reference.\n"
+        f"These files contain critical guidance for completing the task correctly.\n\n"
         f"Task: answer this user request naturally, using the workspace as needed:\n"
         f'"{case["user_prompt"]}"\n\n'
         f"Requirements:\n"
         f"- Treat {attempt_ws} as your only workspace.\n"
         f"- Keep all file reads, writes, and shell commands inside it.\n"
-        f"- Use the skill docs in .agents/skills/ if relevant.\n"
         f"- The environment variables AGORA_APP_ID and AGORA_APP_CERTIFICATE are set and available via $AGORA_APP_ID and $AGORA_APP_CERTIFICATE in shell commands.\n"
         f"- Give the exact answer you would send to the user."
     )
