@@ -106,13 +106,6 @@ jobs:
                 }
               }
             },
-            "tools": {
-              "profile": "coding",
-              "elevated": {
-                "enabled": true,
-                "ask": "never"
-              }
-            },
             "models": {
               "providers": {
                 "openai": {
