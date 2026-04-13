@@ -29,7 +29,26 @@ def run_openclaw(prompt, timeout=600, label="agent"):
         return json.dumps({"error": f"TIMEOUT after {timeout}s"}), -1
 
 def run_evaluator(prompt, timeout=300):
-    """Run evaluator via Codex CLI (most reliable for text judgment)."""
+    """Run evaluator via Codex CLI with custom API endpoint."""
+    # Write Codex config to use the same gateway as OpenClaw
+    codex_home = Path.home() / ".codex"
+    codex_home.mkdir(exist_ok=True)
+    endpoint = os.environ.get("RESPONSES_API_ENDPOINT", "")
+    if endpoint:
+        base_url = endpoint.replace("/v1/responses", "").rstrip("/")
+        config = (
+            'model_provider = "OpenAI"\n'
+            'model = "gpt-5.4"\n'
+            'disable_response_storage = true\n'
+            '\n'
+            '[model_providers.OpenAI]\n'
+            'name = "OpenAI"\n'
+            f'base_url = "{base_url}"\n'
+            'wire_api = "responses"\n'
+            'requires_openai_auth = true\n'
+        )
+        (codex_home / "config.toml").write_text(config)
+
     cmd = ["codex", "exec", "--skip-git-repo-check", "--sandbox", "danger-full-access",
            "--output-last-message", "/tmp/codex-eval-output.md"]
     print(f"  [eval] Running codex exec for judgment...")
@@ -38,7 +57,6 @@ def run_evaluator(prompt, timeout=300):
             cmd, input=prompt, stdout=subprocess.PIPE, stderr=None,
             text=True, timeout=timeout
         )
-        # Read the output file
         output_path = Path("/tmp/codex-eval-output.md")
         if output_path.exists():
             return output_path.read_text(), result.returncode
@@ -197,7 +215,7 @@ for case in cases:
     # If no response text extracted, try to get it from the raw output directly
     if not eval_response.strip():
         print("WARNING: No response text extracted from evaluator. Dumping raw for debug:")
-        print(eval_raw[:1000])
+        print(eval_response[:1000])
 
     # Parse judgment
     case_result = {
