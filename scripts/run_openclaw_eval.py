@@ -35,6 +35,10 @@ def reset_openclaw_session():
         ["acpx", "--approve-all", "openclaw", "sessions", "new"],
         capture_output=True, text=True, timeout=30
     )
+    # Wait for gateway to fully release the previous session
+    import time
+    time.sleep(5)
+    print("  Session reset complete.")
 
 def extract_response_text(raw_json):
     """Extract the agent's text response from acpx NDJSON output."""
@@ -160,18 +164,18 @@ for case in cases:
     case_data = yaml.safe_load(open(case["path"]))
     assertions_text = json.dumps(case_data.get("assert", {}).get("required", []), indent=2)
 
-    # Keep evaluator prompt concise to avoid token issues
+    # Keep evaluator prompt concise and action-oriented so OpenClaw engages
     eval_prompt = (
-        "You are an evaluator. Judge this agent's work. Do NOT run commands.\n\n"
-        f"Task: {case['user_prompt'][:300]}\n\n"
-        f"Agent answer:\n{task_response[:1500]}\n\n"
-        f"Tool calls: {len(task_tools)}\n"
-        f"Files created: {ws_files.count(chr(10))}\n\n"
-        f"Assertions:\n{assertions_text}\n\n"
-        "Reply with ONLY JSON:\n"
+        f"Please analyze this agent's work and give me your judgment.\n\n"
+        f"The agent was asked to: {case['user_prompt'][:300]}\n\n"
+        f"The agent responded:\n{task_response[:1500]}\n\n"
+        f"Files in workspace: {ws_files.count(chr(10))}\n\n"
+        f"Check these assertions and tell me pass or fail for each:\n{assertions_text}\n\n"
+        f"Write your answer as a JSON object with this structure:\n"
         '{"case_id":"' + cid + '","status":"pass or fail",'
-        '"assertions":[{"summary":"...","status":"pass or fail","evidence":["..."]}],'
-        '"notes":["..."]}'
+        '"assertions":[{"summary":"description","status":"pass or fail","evidence":["what you observed"]}],'
+        '"notes":["any observations"]}\n\n'
+        "Please write the JSON now."
     )
 
     eval_raw, eval_exit = run_openclaw(eval_prompt, timeout=300, label="eval")
