@@ -135,26 +135,32 @@ for case in cases:
     ws = Path(f"/tmp/openclaw-eval-{cid}")
     ws.mkdir(parents=True, exist_ok=True)
     source_ws = repo_root.parent  # parent dir that contains agentic-evals/
+    print(f"repo_root: {repo_root}")
+    print(f"source_ws: {source_ws}")
+    print(f"source_ws/agentic-evals exists: {(source_ws / 'agentic-evals').exists()}")
+    print(f"repo_root/.agents/skills/agora/SKILL.md exists: {(repo_root / '.agents/skills/agora/SKILL.md').exists()}")
+    print(f"repo_root/.agents/skills/agora/references/conversational-ai/quickstarts.md exists: {(repo_root / '.agents/skills/agora/references/conversational-ai/quickstarts.md').exists()}")
     result = subprocess.run(
         ["bash", ".agents/skills/skills-evaluation/scripts/create_case_workspace.sh",
          str(source_ws), str(ws), cid, "--target", os.environ.get("TARGET_ID", "agora")],
         capture_output=True, text=True)
-    attempt_ws = result.stdout.strip() or str(ws)
+    attempt_ws = result.stdout.strip().split("\n")[-1] if result.stdout.strip() else str(ws)
     if result.returncode != 0:
         print(f"Workspace script failed (exit={result.returncode})")
-        print(f"  stdout: {result.stdout[:300]}")
-        print(f"  stderr: {result.stderr[:300]}")
+        print(f"  stdout: {result.stdout[:500]}")
+        print(f"  stderr: {result.stderr[:500]}")
         # Fallback: manually create workspace with skill files
         attempt_ws = str(ws / cid / "attempt-01")
         os.makedirs(attempt_ws, exist_ok=True)
-        # Copy the full .agents directory tree
         src_agents = str(repo_root / ".agents")
         dst_agents = os.path.join(attempt_ws, ".agents")
         subprocess.run(["cp", "-rL", src_agents, dst_agents], capture_output=True)
-        # Verify what got copied
         copied = subprocess.run(["find", dst_agents, "-type", "f"], capture_output=True, text=True)
         print(f"Fallback: copied {copied.stdout.count(chr(10))} files to {dst_agents}")
-        print(f"  files: {copied.stdout[:500]}")
+    else:
+        # Verify workspace has skill files
+        qs = Path(attempt_ws) / ".agents/skills/agora/references/conversational-ai/quickstarts.md"
+        print(f"quickstarts.md in workspace: {qs.exists()}")
     print(f"Workspace: {attempt_ws}")
 
     # --- Phase 1: Task Agent ---
