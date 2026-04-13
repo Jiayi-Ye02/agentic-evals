@@ -147,6 +147,9 @@ jobs:
           echo "OpenClaw configured with model ${OPENCLAW_MODEL}"
 
       - name: Start OpenClaw gateway
+        env:
+          AGORA_APP_ID: ${{ secrets.AGORA_APP_ID }}
+          AGORA_APP_CERTIFICATE: ${{ secrets.AGORA_APP_CERTIFICATE }}
         run: |
           export OPENCLAW_HIDE_BANNER=1
           # Gateway may crash from Bonjour after becoming ready; run in background and ignore exit
