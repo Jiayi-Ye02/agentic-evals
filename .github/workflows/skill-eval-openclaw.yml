@@ -112,6 +112,11 @@ jobs:
                 }
               }
             },
+            "plugins": {
+              "device-pair": { "enabled": false },
+              "phone-control": { "enabled": false },
+              "talk-voice": { "enabled": false }
+            },
             "gateway": {
               "mode": "local",
               "auth": {
@@ -143,6 +148,8 @@ jobs:
 
       - name: Start OpenClaw gateway
         run: |
+          # Shorten hostname to avoid Bonjour 63-byte label crash
+          sudo hostname oc-ci
           export OPENCLAW_HIDE_BANNER=1
           # Gateway may crash from Bonjour after becoming ready; run in background and ignore exit
           nohup openclaw gateway > /tmp/openclaw-gateway.log 2>&1 &
