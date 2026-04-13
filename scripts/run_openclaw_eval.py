@@ -28,17 +28,24 @@ def run_openclaw(prompt, timeout=600, label="agent"):
         print(f"  [{label}] TIMEOUT after {timeout}s")
         return json.dumps({"error": f"TIMEOUT after {timeout}s"}), -1
 
-def reset_openclaw_session():
-    """Reset the OpenClaw session to ensure evaluator gets a clean context."""
-    print("  Resetting OpenClaw session...")
-    subprocess.run(
-        ["acpx", "--approve-all", "openclaw", "sessions", "new"],
-        capture_output=True, text=True, timeout=30
-    )
-    # Wait for gateway to fully release the previous session
-    import time
-    time.sleep(5)
-    print("  Session reset complete.")
+def run_evaluator(prompt, timeout=300):
+    """Run evaluator via Codex CLI (most reliable for text judgment)."""
+    cmd = ["codex", "exec", "--skip-git-repo-check", "--sandbox", "danger-full-access",
+           "--output-last-message", "/tmp/codex-eval-output.md"]
+    print(f"  [eval] Running codex exec for judgment...")
+    try:
+        result = subprocess.run(
+            cmd, input=prompt, stdout=subprocess.PIPE, stderr=None,
+            text=True, timeout=timeout
+        )
+        # Read the output file
+        output_path = Path("/tmp/codex-eval-output.md")
+        if output_path.exists():
+            return output_path.read_text(), result.returncode
+        return result.stdout, result.returncode
+    except subprocess.TimeoutExpired:
+        print(f"  [eval] TIMEOUT after {timeout}s")
+        return "", -1
 
 def extract_response_text(raw_json):
     """Extract the agent's text response from acpx NDJSON output."""
@@ -155,9 +162,7 @@ for case in cases:
     ws_files_short = ws_files[:2000]  # Limit for evaluator prompt
     print(f"Workspace files ({ws_files.count(chr(10))} files):\n{ws_files[:500]}")
 
-    # --- Phase 2: Evaluator Agent ---
-    # Reset session so evaluator gets clean context (not polluted by task agent)
-    reset_openclaw_session()
+    # --- Phase 2: Evaluator Agent (using Gemini CLI for reliable text judgment) ---
     t2_start = now()
     print(f"\n--- Phase 2: Evaluator ({t2_start.isoformat()}) ---")
 
@@ -178,16 +183,15 @@ for case in cases:
         "Please write the JSON now."
     )
 
-    eval_raw, eval_exit = run_openclaw(eval_prompt, timeout=300, label="eval")
+    eval_response, eval_exit = run_evaluator(eval_prompt)
     t2_end = now()
     t2_dur = (t2_end - t2_start).total_seconds()
 
-    eval_events = count_ndjson_events(eval_raw)
-    print(f"Phase 2 completed in {t2_dur:.0f}s (exit={eval_exit}, events={eval_events})")
+    eval_events = 1  # Codex returns single response
+    print(f"Phase 2 completed in {t2_dur:.0f}s (exit={eval_exit})")
 
-    (art_dir / "evaluator-raw.json").write_text(eval_raw)
+    (art_dir / "evaluator-raw.txt").write_text(eval_response)
 
-    eval_response = extract_response_text(eval_raw)
     print(f"Phase 2 response (first 800):\n{eval_response[:800]}")
 
     # If no response text extracted, try to get it from the raw output directly
@@ -231,7 +235,7 @@ for case in cases:
     # Evidence
     evidence = {
         "task_agent_output": task_raw[:50000],
-        "evaluator_output": eval_raw[:50000],
+        "evaluator_output": eval_response[:50000],
         "workspace_files": ws_files,
     }
     (art_dir / "accepted-session.json").write_text(
