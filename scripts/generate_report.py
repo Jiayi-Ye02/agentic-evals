@@ -24,9 +24,15 @@ def fmt(s):
     m, sec = divmod(int(s), 60)
     return f"{m}m {sec}s"
 
+manifest_path = run_dir / "manifest.json"
+runtime = "unknown"
+if manifest_path.exists():
+    m = json.loads(manifest_path.read_text())
+    runtime = m.get("runtime", "unknown")
+
 lines = [
-    "# Skill Eval Report (Gemini CLI)", "",
-    f"- runtime: gemini-cli (two-phase)",
+    f"# Skill Eval Report ({runtime})", "",
+    f"- runtime: {runtime} (two-phase)",
     f"- cases: {total} ({passed} pass, {failed} fail, {blocked} blocked)", "",
     "## Case Table", "",
     "| case_id | status |",

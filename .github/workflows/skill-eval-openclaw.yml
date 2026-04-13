@@ -161,9 +161,19 @@ jobs:
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:18789/ || echo "000")
           echo "Gateway HTTP status: ${STATUS}"
           if [ "$STATUS" = "000" ]; then
-            echo "::error::Gateway not reachable"
-            cat /tmp/openclaw-gateway.log
-            exit 1
+            echo "Gateway crashed (likely Bonjour). Restarting with node --no-warnings..."
+            # Restart: find the openclaw entry point and run with crash tolerance
+            nohup node --no-warnings $(which openclaw) gateway > /tmp/openclaw-gateway.log 2>&1 &
+            GATEWAY_PID=$!
+            echo "GATEWAY_PID=${GATEWAY_PID}" >> "$GITHUB_ENV"
+            sleep 10
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:18789/ || echo "000")
+            echo "Gateway HTTP status after restart: ${STATUS}"
+            if [ "$STATUS" = "000" ]; then
+              echo "::error::Gateway still not reachable after restart"
+              cat /tmp/openclaw-gateway.log
+              exit 1
+            fi
           fi
 
       - name: Sync skill repo
