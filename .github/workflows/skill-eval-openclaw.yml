@@ -119,8 +119,7 @@ jobs:
                 "token": "${GATEWAY_TOKEN}"
               },
               "port": 18789,
-              "bind": "loopback",
-              "bonjour": false
+              "bind": "loopback"
             }
           }
           EOF
@@ -144,8 +143,8 @@ jobs:
 
       - name: Start OpenClaw gateway
         run: |
-          # Disable Bonjour/mDNS to avoid hostname length crash on CI runners
-          export OPENCLAW_DISABLE_BONJOUR=1
+          # Set short hostname to avoid Bonjour mDNS label length crash on CI
+          sudo scutil --set LocalHostName "oc-ci"
           export OPENCLAW_HIDE_BANNER=1
           openclaw gateway &
           GATEWAY_PID=$!
