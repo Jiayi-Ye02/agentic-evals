@@ -141,12 +141,20 @@ for case in cases:
         capture_output=True, text=True)
     attempt_ws = result.stdout.strip() or str(ws)
     if result.returncode != 0:
-        print(f"Workspace script failed (exit={result.returncode}): {result.stderr[:300]}")
+        print(f"Workspace script failed (exit={result.returncode})")
+        print(f"  stdout: {result.stdout[:300]}")
+        print(f"  stderr: {result.stderr[:300]}")
         # Fallback: manually create workspace with skill files
         attempt_ws = str(ws / cid / "attempt-01")
         os.makedirs(attempt_ws, exist_ok=True)
-        subprocess.run(["cp", "-r", str(repo_root / ".agents"), attempt_ws], capture_output=True)
-        print(f"Fallback: copied .agents/ to {attempt_ws}")
+        # Copy the full .agents directory tree
+        src_agents = str(repo_root / ".agents")
+        dst_agents = os.path.join(attempt_ws, ".agents")
+        subprocess.run(["cp", "-rL", src_agents, dst_agents], capture_output=True)
+        # Verify what got copied
+        copied = subprocess.run(["find", dst_agents, "-type", "f"], capture_output=True, text=True)
+        print(f"Fallback: copied {copied.stdout.count(chr(10))} files to {dst_agents}")
+        print(f"  files: {copied.stdout[:500]}")
     print(f"Workspace: {attempt_ws}")
 
     # --- Phase 1: Task Agent ---
