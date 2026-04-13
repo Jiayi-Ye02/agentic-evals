@@ -112,11 +112,6 @@ jobs:
                 }
               }
             },
-            "plugins": {
-              "device-pair": { "enabled": false },
-              "phone-control": { "enabled": false },
-              "talk-voice": { "enabled": false }
-            },
             "gateway": {
               "mode": "local",
               "auth": {
