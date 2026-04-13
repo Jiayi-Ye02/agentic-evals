@@ -1,0 +1,303 @@
+name: Skill Evaluation (OpenClaw)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_id:
+        description: "Target to evaluate"
+        required: true
+        default: "agora"
+      suite_ids:
+        description: "Comma-separated suite IDs, or 'all'"
+        required: false
+        default: "all"
+      case_id:
+        description: "Single case ID (leave empty for full suite)"
+        required: false
+        default: ""
+      openclaw_model:
+        description: "OpenClaw model (e.g. openai/gpt-4o)"
+        required: false
+        default: "openai/gpt-4o"
+
+  pull_request:
+    paths:
+      - "targets/**/*.yaml"
+      - ".agents/skills/**"
+      - ".github/workflows/**"
+
+env:
+  TARGET_ID: ${{ github.event.inputs.target_id || 'agora' }}
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+      - name: Validate YAML
+        run: |
+          ruby -e '
+            require "yaml"
+            tid = ENV.fetch("TARGET_ID", "agora")
+            Dir["targets/#{tid}/cases/*/suite.yaml"].sort.each { |f| YAML.load_file(f) }
+            Dir["targets/#{tid}/cases/**/*.yaml"].sort.reject { |f| f.end_with?("suite.yaml") }.each { |f| YAML.load_file(f) }
+            YAML.load_file("targets/#{tid}/target.yaml")
+            puts "yaml-ok"
+          '
+
+  evaluate:
+    needs: validate
+    runs-on: macos-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install pyyaml
+          npm install -g acpx@latest agent-browser
+          # Install OpenClaw
+          npm install -g openclaw@latest
+          openclaw --version
+          acpx --version
+
+      - name: Configure OpenClaw
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          RESPONSES_API_ENDPOINT: ${{ secrets.RESPONSES_API_ENDPOINT }}
+          OPENCLAW_MODEL: ${{ github.event.inputs.openclaw_model || 'openai/gpt-4o' }}
+        run: |
+          mkdir -p ~/.openclaw/agents/main/sessions
+
+          # Generate a random gateway token
+          GATEWAY_TOKEN=$(openssl rand -hex 24)
+
+          # Derive base URL from RESPONSES_API_ENDPOINT (strip /v1/responses suffix if present)
+          BASE_URL="${RESPONSES_API_ENDPOINT%/v1/responses}"
+          BASE_URL="${BASE_URL%/}"
+
+          # Write OpenClaw config with custom baseURL pointing to the same gateway as Codex
+          cat > ~/.openclaw/openclaw.json << EOF
+          {
+            "agents": {
+              "defaults": {
+                "maxConcurrent": 4,
+                "workspace": "$HOME/openclaw-workspace",
+                "model": {
+                  "primary": "${OPENCLAW_MODEL}"
+                },
+                "models": {
+                  "${OPENCLAW_MODEL}": {
+                    "baseURL": "${BASE_URL}"
+                  }
+                }
+              }
+            },
+            "gateway": {
+              "mode": "local",
+              "auth": {
+                "mode": "token",
+                "token": "${GATEWAY_TOKEN}"
+              },
+              "port": 18789,
+              "bind": "loopback"
+            }
+          }
+          EOF
+
+          mkdir -p ~/openclaw-workspace
+
+          # Write acpx config with the token
+          mkdir -p ~/.acpx
+          cat > ~/.acpx/config.json << EOF
+          {
+            "defaultAgent": "openclaw",
+            "agents": {
+              "openclaw": {
+                "command": "openclaw acp --token ${GATEWAY_TOKEN} --session agent:main:main"
+              }
+            }
+          }
+          EOF
+
+          echo "OpenClaw configured with model ${OPENCLAW_MODEL}"
+
+      - name: Start OpenClaw gateway
+        run: |
+          openclaw gateway &
+          GATEWAY_PID=$!
+          echo "GATEWAY_PID=${GATEWAY_PID}" >> "$GITHUB_ENV"
+
+          # Wait for gateway to be ready
+          for i in $(seq 1 30); do
+            if curl -s http://127.0.0.1:18789/ > /dev/null 2>&1; then
+              echo "Gateway ready after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+
+          # Verify
+          curl -s -o /dev/null -w "Gateway HTTP status: %{http_code}\n" http://127.0.0.1:18789/
+
+      - name: Sync skill repo
+        env:
+          SKILL_REPO: ${{ github.event.inputs.skill_repo || 'AgoraIO/skills' }}
+          SKILL_REF: ${{ github.event.inputs.skill_repo_ref || 'main' }}
+        run: |
+          if [ -f .agents/skills/agora/SKILL.md ]; then
+            echo "Agora skill present, skipping"
+            exit 0
+          fi
+          git clone "https://github.com/${SKILL_REPO}.git" /tmp/skill-repo
+          git -C /tmp/skill-repo checkout "${SKILL_REF}"
+          rm -rf .agents/skills/agora && mkdir -p .agents/skills/agora
+          cp -r /tmp/skill-repo/skills/agora/* .agents/skills/agora/
+
+      - name: Write credentials
+        env:
+          AGORA_APP_ID: ${{ secrets.AGORA_APP_ID }}
+          AGORA_APP_CERTIFICATE: ${{ secrets.AGORA_APP_CERTIFICATE }}
+        run: |
+          printf 'export AGORA_APP_ID="%s"\nexport AGORA_APP_CERTIFICATE="%s"\n' \
+            "$AGORA_APP_ID" "$AGORA_APP_CERTIFICATE" > /tmp/agora-credentials.env
+          chmod 600 /tmp/agora-credentials.env
+
+      - name: Resolve cases
+        id: resolve
+        env:
+          SUITE_IDS: ${{ github.event.inputs.suite_ids || 'all' }}
+          CASE_ID: ${{ github.event.inputs.case_id || '' }}
+          IS_PR: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
+        run: |
+          python3 - << 'PY'
+          import yaml, json, os, datetime
+          target_id = os.environ["TARGET_ID"]
+          suite_ids = os.environ.get("SUITE_IDS", "all")
+          case_id = os.environ.get("CASE_ID", "")
+          is_pr = os.environ.get("IS_PR", "false")
+          if is_pr == "true" and not case_id:
+              case_id = "convoai-e2e-first-success"
+              suite_ids = "workflow"
+          target = yaml.safe_load(open(f"targets/{target_id}/target.yaml"))
+          if suite_ids == "all":
+              suite_ids = target["default_suites"]
+          else:
+              suite_ids = [s.strip() for s in suite_ids.split(",")]
+          cases = []
+          for sid in suite_ids:
+              suite = yaml.safe_load(open(f"targets/{target_id}/cases/{sid}/suite.yaml"))
+              for cp in suite["cases"]:
+                  c = yaml.safe_load(open(cp))
+                  if case_id and c["case_id"] != case_id:
+                      continue
+                  cases.append({"case_id": c["case_id"], "path": cp, "user_prompt": c["input"]["user_prompt"]})
+          now = datetime.datetime.now(datetime.timezone.utc)
+          run_id = f"openclaw-{now.strftime('%Y%m%dT%H%M%SZ')}"
+          run_dir = f"runs/{run_id}"
+          os.makedirs(f"{run_dir}/case-artifacts", exist_ok=True)
+          os.makedirs(f"{run_dir}/case-results", exist_ok=True)
+          manifest = {"run_mode": "single-run", "run_id": run_id, "runtime": "openclaw",
+                      "target_id": target_id, "suite_ids": suite_ids,
+                      "case_ids": [c["case_id"] for c in cases],
+                      "started_at": now.isoformat(), "evidence_mode": "openclaw-acpx-two-phase"}
+          json.dump(manifest, open(f"{run_dir}/manifest.json", "w"), indent=2)
+          json.dump(cases, open("/tmp/eval-cases.json", "w"))
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write(f"run_dir={run_dir}\n")
+          print(f"Resolved {len(cases)} cases -> {run_dir}")
+          PY
+
+      - name: Verify acpx + OpenClaw connection
+        run: |
+          echo "Testing acpx -> OpenClaw connection..."
+          acpx --approve-all openclaw exec "say hello" 2>&1 | tail -5
+          echo "Connection verified"
+
+      - name: Run two-phase evaluation
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AGORA_APP_ID: ${{ secrets.AGORA_APP_ID }}
+          AGORA_APP_CERTIFICATE: ${{ secrets.AGORA_APP_CERTIFICATE }}
+          RUN_DIR: ${{ steps.resolve.outputs.run_dir }}
+        run: |
+          source /tmp/agora-credentials.env
+          python3 scripts/run_openclaw_eval.py
+
+      - name: Generate report
+        if: always()
+        env:
+          RUN_DIR: ${{ steps.resolve.outputs.run_dir }}
+        run: python3 scripts/generate_report.py
+
+      - name: Stop gateway
+        if: always()
+        run: |
+          if [ -n "${GATEWAY_PID:-}" ]; then
+            kill "$GATEWAY_PID" 2>/dev/null || true
+          fi
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-run-openclaw-${{ env.TARGET_ID }}-${{ github.run_id }}
+          path: ${{ steps.resolve.outputs.run_dir }}
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Post report to job summary
+        if: always()
+        env:
+          RUN_DIR: ${{ steps.resolve.outputs.run_dir }}
+        run: |
+          if [ -f "${RUN_DIR}/report.md" ]; then
+            echo "## Skill Eval Report (OpenClaw)" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            cat "${RUN_DIR}/report.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        env:
+          RUN_DIR: ${{ steps.resolve.outputs.run_dir }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const fs = require('fs');
+            const rp = `${process.env.RUN_DIR}/report.md`;
+            if (!fs.existsSync(rp)) return;
+            const report = fs.readFileSync(rp, 'utf8');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: `## Skill Eval Report (OpenClaw)\n\n${report}\n\n---\n[Download artifacts](${process.env.RUN_URL})`,
+            });
+
+      - name: Report results
+        if: always()
+        env:
+          RUN_DIR: ${{ steps.resolve.outputs.run_dir }}
+        run: |
+          RESULTS_DIR="${RUN_DIR}/case-results"
+          [ -d "$RESULTS_DIR" ] || { echo "::warning::No case-results"; exit 0; }
+          FAIL=$(grep -rl '"status": "fail"' "$RESULTS_DIR" 2>/dev/null | wc -l || echo 0)
+          PASS=$(grep -rl '"status": "pass"' "$RESULTS_DIR" 2>/dev/null | wc -l || echo 0)
+          BLOCKED=$(grep -rl '"status": "blocked"' "$RESULTS_DIR" 2>/dev/null | wc -l || echo 0)
+          echo "Results: ${PASS} pass, ${FAIL} fail, ${BLOCKED} blocked"
