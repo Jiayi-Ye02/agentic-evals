@@ -103,6 +103,10 @@ jobs:
                 "workspace": "$HOME/openclaw-workspace",
                 "model": {
                   "primary": "openai/gpt-5.4"
+                },
+                "tools": {
+                  "shell": { "enabled": true, "network": true },
+                  "browser": { "enabled": true }
                 }
               }
             },
