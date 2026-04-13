@@ -89,13 +89,22 @@ for case in cases:
     print(f"{'='*60}")
 
     # Create workspace
+    # create_case_workspace.sh expects source_workspace to be PARENT of agentic-evals/
     ws = Path(f"/tmp/openclaw-eval-{cid}")
     ws.mkdir(parents=True, exist_ok=True)
+    source_ws = repo_root.parent  # parent dir that contains agentic-evals/
     result = subprocess.run(
         ["bash", ".agents/skills/skills-evaluation/scripts/create_case_workspace.sh",
-         str(repo_root), str(ws), cid, "--target", os.environ.get("TARGET_ID", "agora")],
+         str(source_ws), str(ws), cid, "--target", os.environ.get("TARGET_ID", "agora")],
         capture_output=True, text=True)
     attempt_ws = result.stdout.strip() or str(ws)
+    if result.returncode != 0:
+        print(f"Workspace script failed (exit={result.returncode}): {result.stderr[:300]}")
+        # Fallback: manually create workspace with skill files
+        attempt_ws = str(ws / cid / "attempt-01")
+        os.makedirs(attempt_ws, exist_ok=True)
+        subprocess.run(["cp", "-r", str(repo_root / ".agents"), attempt_ws], capture_output=True)
+        print(f"Fallback: copied .agents/ to {attempt_ws}")
     print(f"Workspace: {attempt_ws}")
 
     # --- Phase 1: Task Agent ---
