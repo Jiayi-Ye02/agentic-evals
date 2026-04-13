@@ -143,14 +143,13 @@ jobs:
 
       - name: Start OpenClaw gateway
         run: |
-          # Set short hostname to avoid Bonjour mDNS label length crash on CI
-          sudo scutil --set LocalHostName "oc-ci"
           export OPENCLAW_HIDE_BANNER=1
-          openclaw gateway &
+          # Gateway may crash from Bonjour after becoming ready; run in background and ignore exit
+          nohup openclaw gateway > /tmp/openclaw-gateway.log 2>&1 &
           GATEWAY_PID=$!
           echo "GATEWAY_PID=${GATEWAY_PID}" >> "$GITHUB_ENV"
 
-          # Wait for gateway to be ready
+          # Wait for gateway HTTP to be ready (it starts before Bonjour crashes)
           for i in $(seq 1 30); do
             if curl -s http://127.0.0.1:18789/ > /dev/null 2>&1; then
               echo "Gateway ready after ${i}s"
@@ -159,8 +158,13 @@ jobs:
             sleep 1
           done
 
-          # Verify
-          curl -s -o /dev/null -w "Gateway HTTP status: %{http_code}\n" http://127.0.0.1:18789/
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:18789/ || echo "000")
+          echo "Gateway HTTP status: ${STATUS}"
+          if [ "$STATUS" = "000" ]; then
+            echo "::error::Gateway not reachable"
+            cat /tmp/openclaw-gateway.log
+            exit 1
+          fi
 
       - name: Sync skill repo
         env:
