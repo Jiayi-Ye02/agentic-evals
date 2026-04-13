@@ -89,7 +89,7 @@ jobs:
           BASE_URL="${RESPONSES_API_ENDPOINT%/v1/responses}"
           BASE_URL="${BASE_URL%/}"
 
-          # Write OpenClaw config with custom baseURL pointing to the same gateway as Codex
+          # Write OpenClaw config with custom provider pointing to the same gateway as Codex
           cat > ~/.openclaw/openclaw.json << EOF
           {
             "agents": {
@@ -98,11 +98,15 @@ jobs:
                 "workspace": "$HOME/openclaw-workspace",
                 "model": {
                   "primary": "${OPENCLAW_MODEL}"
-                },
-                "models": {
-                  "${OPENCLAW_MODEL}": {
-                    "baseURL": "${BASE_URL}"
-                  }
+                }
+              }
+            },
+            "models": {
+              "providers": {
+                "openai": {
+                  "baseUrl": "${BASE_URL}",
+                  "apiKey": "${OPENAI_API_KEY}",
+                  "api": "openai-responses"
                 }
               }
             },
