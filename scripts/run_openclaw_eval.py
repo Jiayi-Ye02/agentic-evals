@@ -1,11 +1,32 @@
 #!/usr/bin/env python3
 """Two-phase OpenClaw evaluation via acpx: task agent + evaluator agent."""
-import json, subprocess, os, datetime, yaml, re, sys
+import json, subprocess, os, datetime, re, sys
 from pathlib import Path
 
+# Force unbuffered output so prints appear in CI logs
+sys.stdout.reconfigure(line_buffering=True)
+
+print("=== OpenClaw eval script starting ===", flush=True)
+
+try:
+    import yaml
+except ImportError:
+    print("ERROR: pyyaml not installed, installing...", flush=True)
+    subprocess.run([sys.executable, "-m", "pip", "install", "pyyaml", "-q"])
+    import yaml
+
 run_dir = Path(os.environ["RUN_DIR"])
-cases = json.loads(Path("/tmp/eval-cases.json").read_text())
+print(f"RUN_DIR: {run_dir}", flush=True)
+
+cases_file = Path("/tmp/eval-cases.json")
+if not cases_file.exists():
+    print(f"ERROR: {cases_file} not found!", flush=True)
+    sys.exit(1)
+cases = json.loads(cases_file.read_text())
+print(f"Cases: {len(cases)}", flush=True)
+
 repo_root = Path.cwd()
+print(f"repo_root: {repo_root}", flush=True)
 
 def now():
     return datetime.datetime.now(datetime.timezone.utc)
@@ -164,13 +185,20 @@ for case in cases:
     print(f"Workspace: {attempt_ws}")
 
     # --- Phase 1: Task Agent ---
-    # Reset session for clean state
+    # Reset session for clean state and enable elevated mode
     subprocess.run(
         ["acpx", "--approve-all", "openclaw", "sessions", "new"],
         capture_output=True, text=True, timeout=30
     )
     import time
     time.sleep(3)
+    # Enable auto-approve for shell commands
+    subprocess.run(
+        ["acpx", "--approve-all", "openclaw", "prompt", "/elevated full"],
+        capture_output=True, text=True, timeout=30
+    )
+    time.sleep(2)
+    print("  Elevated mode set to full (auto-approve)", flush=True)
     t1_start = now()
     print(f"\n--- Phase 1: Task Agent ({t1_start.isoformat()}) ---")
 

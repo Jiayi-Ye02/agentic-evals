@@ -106,6 +106,16 @@ jobs:
                 }
               }
             },
+            "tools": {
+              "elevated": {
+                "enabled": true,
+                "allowFrom": {
+                  "acp": ["*"],
+                  "webchat": ["*"],
+                  "terminal": ["*"]
+                }
+              }
+            },
             "models": {
               "providers": {
                 "openai": {
