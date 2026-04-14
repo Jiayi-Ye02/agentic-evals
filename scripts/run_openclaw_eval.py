@@ -255,13 +255,19 @@ for case in cases:
         f"Please analyze this agent's work and give me your judgment.\n\n"
         f"The agent was asked to: {case['user_prompt'][:300]}\n\n"
         f"The agent responded:\n{task_response[:1500]}\n\n"
+        f"The agent's workspace is at: {attempt_ws}\n"
         f"Files in workspace: {ws_files.count(chr(10))}\n\n"
+        f"IMPORTANT: The ACP protocol does not record tool calls, so you MUST verify by inspecting the workspace directly:\n"
+        f"- Check if {attempt_ws}/agent-quickstart-nextjs exists (git clone evidence)\n"
+        f"- Check if a .env.local file exists with Agora credentials\n"
+        f"- Check if a dev server process is running (use: ss -ltnp | grep 3000 or curl http://localhost:3000)\n"
+        f"- Run these checks yourself before judging.\n\n"
         f"Check these assertions and tell me pass or fail for each:\n{assertions_text}\n\n"
         f"Write your answer as a JSON object with this structure:\n"
         '{"case_id":"' + cid + '","status":"pass or fail",'
         '"assertions":[{"summary":"description","status":"pass or fail","evidence":["what you observed"]}],'
         '"notes":["any observations"]}\n\n'
-        "Please write the JSON now."
+        "Please run the verification commands and write the JSON now."
     )
 
     eval_response, eval_exit = run_evaluator(eval_prompt)
