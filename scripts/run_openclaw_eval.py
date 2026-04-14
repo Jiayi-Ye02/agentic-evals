@@ -200,41 +200,15 @@ for case in cases:
     time.sleep(2)
     print("  Elevated mode set to full (auto-approve)", flush=True)
 
-    # Pre-clone repos that the case might need (using runner's shell, not OpenClaw's)
-    # This ensures git repos are available even if OpenClaw's shell can't access GitHub
-    quickstart_repo = Path(attempt_ws) / "agent-quickstart-nextjs"
-    if not quickstart_repo.exists():
-        print("  Pre-cloning agent-quickstart-nextjs into workspace...", flush=True)
-        clone_result = subprocess.run(
-            ["git", "clone", "--depth", "1",
-             "https://github.com/AgoraIO-Conversational-AI/agent-quickstart-nextjs.git",
-             str(quickstart_repo)],
-            capture_output=True, text=True, timeout=120
-        )
-        if clone_result.returncode == 0:
-            print(f"  Pre-clone success: {quickstart_repo}", flush=True)
-        else:
-            print(f"  Pre-clone failed: {clone_result.stderr[:200]}", flush=True)
-
     t1_start = now()
-    print(f"\n--- Phase 1: Task Agent ({t1_start.isoformat()}) ---")
-
-    # Include env var hint in prompt so agent knows they're available
-    # Build task prompt - mention pre-cloned repo if available
-    repo_hint = ""
-    if quickstart_repo.exists():
-        repo_hint = (
-            f"\nNote: The official quickstart repo has already been cloned to "
-            f"{quickstart_repo} in your workspace. Use it directly instead of cloning.\n"
-        )
+    print(f"\n--- Phase 1: Task Agent ({t1_start.isoformat()}) ---", flush=True)
 
     task_prompt = (
         f"You are working in workspace: {attempt_ws}\n\n"
         f"IMPORTANT: Before starting, read the skill documentation files in your workspace:\n"
         f"  1. First read: {attempt_ws}/.agents/skills/agora/SKILL.md\n"
         f"  2. Then follow its routing instructions to find the right product reference.\n"
-        f"These files contain critical guidance for completing the task correctly.\n"
-        f"{repo_hint}\n"
+        f"These files contain critical guidance for completing the task correctly.\n\n"
         f"Task: answer this user request naturally, using the workspace as needed:\n"
         f'"{case["user_prompt"]}"\n\n'
         f"Requirements:\n"

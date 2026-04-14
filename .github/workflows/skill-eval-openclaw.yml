@@ -107,6 +107,7 @@ jobs:
               }
             },
             "tools": {
+              "profile": "coding",
               "elevated": {
                 "enabled": true,
                 "allowFrom": {
