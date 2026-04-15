@@ -1,14 +1,26 @@
 #!/usr/bin/env python3
 """
-Hermes single-phase evaluation: one hermes invocation does both
-task execution AND verification, avoiding the agent-browser ERR_ABORTED
-issue in the two-phase Codex evaluator approach.
+Hermes evaluator with sub-agent execution (mirrors Codex spawn_agent pattern).
+
+Architecture:
+  - Python script sets up workspace and builds the evaluator prompt
+  - A single hermes invocation acts as the EVALUATOR (main agent)
+  - The evaluator prompt instructs hermes to:
+    1. Spawn a sub-agent via shell: `hermes chat --yolo --quiet -q "<task_prompt>"`
+    2. Wait for the sub-agent to finish (it's a blocking shell call)
+    3. Inspect the workspace and running processes independently
+    4. Judge assertions and output structured JSON
+
+  Context isolation:
+  - The sub-agent (hermes child process) only receives the user prompt + workspace path
+  - The sub-agent does NOT see assertions, expected outcomes, or evaluator instructions
+  - The evaluator sees the sub-agent's stdout but judges from workspace inspection
 """
 import json, subprocess, os, datetime, re, sys
 from pathlib import Path
 
 sys.stdout.reconfigure(line_buffering=True)
-print("=== Hermes single-phase eval starting ===", flush=True)
+print("=== Hermes evaluator+subagent eval starting ===", flush=True)
 
 try:
     import yaml
@@ -32,7 +44,8 @@ def now():
     return datetime.datetime.now(datetime.timezone.utc)
 
 
-def run_hermes(prompt, timeout=900, label="orch", cwd=None):
+def run_hermes(prompt, timeout=900, label="evaluator", cwd=None):
+    """Run hermes chat one-shot."""
     cmd = ["hermes", "chat", "--yolo", "--quiet", "-q", prompt]
     if model_flag:
         cmd.extend(["--model", model_flag])
@@ -64,54 +77,80 @@ def setup_workspace(cid):
     return attempt_ws
 
 
-def build_prompt(case, attempt_ws, assertions_text, cid):
+def build_subagent_task_prompt(case, attempt_ws):
+    """The prompt that the sub-agent receives. No assertions, no eval context."""
     return (
-        f"You are an orchestrator agent with TWO jobs.\n\n"
-        f"## JOB 1: Execute the task\n\n"
-        f"Workspace: {attempt_ws}\n\n"
-        f"Before starting, read the skill docs:\n"
-        f"  1. {attempt_ws}/.agents/skills/agora/SKILL.md\n"
-        f"  2. Follow its routing instructions for the right product reference.\n\n"
-        f'User request:\n"{case["user_prompt"]}"\n\n'
-        f"Rules:\n"
-        f"- Work only inside {attempt_ws}.\n"
-        f"- AGORA_APP_ID and AGORA_APP_CERTIFICATE env vars are set. Use their literal values\n"
-        f"  (echo $AGORA_APP_ID) when writing config files. Do NOT write ${{AGORA_APP_ID}} syntax.\n"
-        f"- If git clone fails, use: curl -L https://github.com/OWNER/REPO/archive/refs/heads/main.tar.gz | tar xz\n"
-        f"- Start dev servers as background processes (nohup pnpm dev > /dev/null 2>&1 &).\n"
-        f"- Verify the server is listening (curl -I http://localhost:3000) before moving on.\n\n"
-        f"## JOB 2: Verify the result\n\n"
-        f"After JOB 1, check these assertions:\n{assertions_text}\n\n"
-        f"Verification approach:\n"
-        f"- Check cloned repo directory exists with expected files\n"
-        f"- Check .env.local has real Agora credentials (not placeholders)\n"
-        f"- Check port 3000 is listening (lsof -i :3000 or curl -I http://localhost:3000)\n"
-        f"- For browser check: use your browser tool to open http://localhost:3000 and verify\n"
-        f"  the page loads with expected content. If the browser tool fails with a network error,\n"
-        f"  retry once with http://127.0.0.1:3000. If that also fails, fall back to curl and\n"
-        f"  check the HTML body contains expected page content (e.g. Next.js markup, page title).\n"
-        f"  curl 200 + valid HTML body is acceptable as a pass for the browser assertion.\n\n"
-        f"## OUTPUT\n\n"
-        f"End your response with exactly:\n\n"
-        f"VERIFICATION_JSON:\n"
-        f'{{"case_id": "{cid}", "status": "pass or fail", '
-        f'"assertions": [{{"summary": "...", "status": "pass or fail", "evidence": ["..."]}}], '
-        f'"notes": ["..."]}}\n\n'
-        f'"status" = "pass" only if ALL assertions pass.\n'
+        f"You are working in workspace: {attempt_ws}\n\n"
+        f"IMPORTANT: Before starting, read the skill documentation files in your workspace:\n"
+        f"  1. First read: {attempt_ws}/.agents/skills/agora/SKILL.md\n"
+        f"  2. Then follow its routing instructions to find the right product reference.\n"
+        f"These files contain critical guidance for completing the task correctly.\n\n"
+        f"Task: answer this user request naturally, using the workspace as needed:\n"
+        f'"{case["user_prompt"]}"\n\n'
+        f"Requirements:\n"
+        f"- Treat {attempt_ws} as your only workspace.\n"
+        f"- Keep all file reads, writes, and shell commands inside it.\n"
+        f"- The environment variables AGORA_APP_ID and AGORA_APP_CERTIFICATE are set and available.\n"
+        f"  Use their literal values (echo $AGORA_APP_ID) when writing config files — do NOT write "
+        f"shell variable syntax like ${{AGORA_APP_ID}} into files.\n"
+        f"- If git clone over HTTPS fails, use tarball download instead: "
+        f"curl -L https://github.com/OWNER/REPO/archive/refs/heads/main.tar.gz | tar xz\n"
+        f"- When starting a dev server (e.g. npm run dev, pnpm dev), you MUST launch it as a background process "
+        f"(e.g. `nohup pnpm dev > /dev/null 2>&1 &` or use the process tool) so it keeps running after you finish.\n"
+        f"- After starting the server, verify it is listening (e.g. curl -I http://localhost:3000) before reporting success.\n"
+        f"- Give the exact answer you would send to the user."
     )
 
 
-def parse_judgment(stdout, cid):
-    json_source = stdout
-    if "VERIFICATION_JSON:" in stdout:
-        json_source = stdout.split("VERIFICATION_JSON:", 1)[1].strip()
-    m = re.search(r'\{[\s\S]*\}', json_source)
+def build_evaluator_prompt(case, attempt_ws, assertions_text, cid, subagent_cmd):
+    """
+    The evaluator (main agent) prompt. It will:
+    1. Spawn the sub-agent via shell command
+    2. Wait for it to complete
+    3. Independently verify the workspace
+    4. Output judgment JSON
+    """
+    return (
+        f"You are the skill-eval evaluator agent.\n\n"
+        f"## Step 1: Execute the task via sub-agent\n\n"
+        f"Run this shell command to spawn an isolated sub-agent that will execute the task:\n\n"
+        f"```\n{subagent_cmd}\n```\n\n"
+        f"This command runs a SEPARATE hermes agent process. It will:\n"
+        f"- Read skill docs in the workspace\n"
+        f"- Clone repos, configure files, start servers as needed\n"
+        f"- Print its response to stdout\n\n"
+        f"Wait for it to complete. Save its stdout output — this is the sub-agent's response.\n"
+        f"The sub-agent does NOT know about the assertions below. It only received the user's request.\n\n"
+        f"## Step 2: Verify independently\n\n"
+        f"After the sub-agent finishes, YOU must verify the workspace at: {attempt_ws}\n\n"
+        f"Do NOT trust the sub-agent's self-report. Inspect everything yourself:\n"
+        f"- Check if {attempt_ws}/agent-quickstart-nextjs exists (git clone evidence)\n"
+        f"- Check if a .env.local file exists with real Agora credentials (not placeholders)\n"
+        f"- Check if a dev server process is running (use: lsof -i :3000 or curl -I http://localhost:3000)\n"
+        f"- For browser verification: use your browser tool to open http://localhost:3000 and verify\n"
+        f"  the page loads with expected content. If the browser tool fails with a network error,\n"
+        f"  retry once with http://127.0.0.1:3000. If that also fails, fall back to curl and\n"
+        f"  check the HTML body contains expected page content.\n"
+        f"  curl 200 + valid HTML body is acceptable as a pass for the browser assertion.\n\n"
+        f"Check these assertions:\n{assertions_text}\n\n"
+        f"## Step 3: Output judgment\n\n"
+        f"Write your answer as a JSON object:\n"
+        f'{{"case_id": "{cid}", "status": "pass or fail", '
+        f'"assertions": [{{"summary": "description", "status": "pass or fail", "evidence": ["what you observed"]}}], '
+        f'"notes": ["any observations"]}}\n\n'
+        f'"status" = "pass" only if ALL assertions pass.\n'
+        f"Run the sub-agent command and verification now."
+    )
+
+
+def parse_judgment(text):
+    m = re.search(r'\{[\s\S]*\}', text)
     if m:
         try:
             return json.loads(m.group())
         except json.JSONDecodeError:
             pass
-    for line in json_source.split("\n"):
+    for line in text.split("\n"):
         line = line.strip()
         if line.startswith("{") and "case_id" in line:
             try:
@@ -133,45 +172,54 @@ for case in cases:
     assertions_text = json.dumps(
         case_data.get("assert", {}).get("required", []), indent=2)
 
-    t_start = now()
-    print(f"\n--- Orchestrator ({t_start.isoformat()}) ---", flush=True)
+    # Build the sub-agent command that the evaluator will execute via shell
+    task_prompt = build_subagent_task_prompt(case, attempt_ws)
+    # Escape single quotes in the prompt for shell safety
+    escaped_prompt = task_prompt.replace("'", "'\\''")
+    subagent_cmd = f"hermes chat --yolo --quiet -q '{escaped_prompt}'"
+    if model_flag:
+        subagent_cmd += f" --model '{model_flag}'"
 
-    prompt = build_prompt(case, attempt_ws, assertions_text, cid)
-    stdout, exitcode, stderr = run_hermes(prompt, timeout=900, cwd=attempt_ws)
+    t_start = now()
+    print(f"\n--- Evaluator+SubAgent ({t_start.isoformat()}) ---", flush=True)
+
+    eval_prompt = build_evaluator_prompt(
+        case, attempt_ws, assertions_text, cid, subagent_cmd)
+    stdout, exitcode, stderr = run_hermes(
+        eval_prompt, timeout=900, label="evaluator", cwd=attempt_ws)
 
     t_end = now()
     t_dur = (t_end - t_start).total_seconds()
     print(f"Done in {t_dur:.0f}s (exit={exitcode})")
 
+    # Save artifacts
     art_dir = run_dir / "case-artifacts" / cid
     art_dir.mkdir(parents=True, exist_ok=True)
-    (art_dir / "orchestrator-raw.txt").write_text(stdout)
+    (art_dir / "evaluator-raw.txt").write_text(stdout)
     if stderr:
-        (art_dir / "orchestrator-stderr.txt").write_text(stderr)
-
-    task_text = stdout
-    if "VERIFICATION_JSON:" in stdout:
-        task_text = stdout.split("VERIFICATION_JSON:")[0].strip()
-    (art_dir / "final-answer.txt").write_text(task_text + "\n")
+        (art_dir / "evaluator-stderr.txt").write_text(stderr)
+    (art_dir / "final-answer.txt").write_text(stdout + "\n")
 
     print(f"Response (first 500):\n{stdout[:500]}")
 
+    # Workspace state
     ws_files = subprocess.run(
         ["find", attempt_ws, "-type", "f", "-maxdepth", "4"],
         capture_output=True, text=True).stdout
 
+    # Parse judgment
     case_result = {
         "case_id": cid, "status": "blocked",
-        "blocked_reason": "parse-error", "assertions": [],
-        "notes": ["Could not parse orchestrator output"],
+        "blocked_reason": "evaluator-parse-error", "assertions": [],
+        "notes": ["Could not parse evaluator response"],
         "started_at": t_start.isoformat(),
         "completed_at": t_end.isoformat(),
         "total_duration_s": round(t_dur),
         "workspace_root": attempt_ws,
-        "mode": "hermes-single-phase",
+        "mode": "hermes-evaluator-subagent",
     }
 
-    parsed = parse_judgment(stdout, cid)
+    parsed = parse_judgment(stdout)
     if parsed:
         case_result.update({
             "status": parsed.get("status", "blocked"),
@@ -183,9 +231,10 @@ for case in cases:
     (run_dir / "case-results" / f"{cid}.json").write_text(
         json.dumps(case_result, indent=2) + "\n")
 
+    # Evidence bundle
     evidence = {
-        "orchestrator_output": stdout[:50000],
-        "orchestrator_stderr": (stderr or "")[:10000],
+        "evaluator_output": stdout[:50000],
+        "evaluator_stderr": (stderr or "")[:10000],
         "workspace_files": ws_files,
     }
     (art_dir / "accepted-session.json").write_text(
