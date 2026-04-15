@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Two-phase OpenClaw evaluation via acpx: task agent + evaluator agent."""
-import json, subprocess, os, datetime, re, sys
+import json, subprocess, os, datetime, re, sys, time
 from pathlib import Path
 
 # Force unbuffered output so prints appear in CI logs
@@ -190,7 +190,6 @@ for case in cases:
         ["acpx", "--approve-all", "openclaw", "sessions", "new"],
         capture_output=True, text=True, timeout=30
     )
-    import time
     time.sleep(3)
     # Enable auto-approve for shell commands
     subprocess.run(
@@ -220,6 +219,29 @@ for case in cases:
     )
 
     task_raw, task_exit = run_openclaw(task_prompt, timeout=600, label="task")
+
+    # Retry up to 2 more times if the agent times out or produces no output
+    MAX_RETRIES = 3
+    for attempt in range(2, MAX_RETRIES + 1):
+        task_response_check = extract_response_text(task_raw)
+        is_timeout = '"error"' in task_raw and "TIMEOUT" in task_raw
+        is_empty = not task_response_check.strip()
+        if not is_timeout and not is_empty:
+            break
+        print(f"  [task] Attempt {attempt - 1} failed (timeout={is_timeout}, empty={is_empty}). Retrying ({attempt}/{MAX_RETRIES})...", flush=True)
+        # Reset session for clean state
+        subprocess.run(
+            ["acpx", "--approve-all", "openclaw", "sessions", "new"],
+            capture_output=True, text=True, timeout=30
+        )
+        time.sleep(3)
+        subprocess.run(
+            ["acpx", "--approve-all", "openclaw", "prompt", "/elevated full"],
+            capture_output=True, text=True, timeout=30
+        )
+        time.sleep(2)
+        task_raw, task_exit = run_openclaw(task_prompt, timeout=600, label=f"task-retry{attempt}")
+
     t1_end = now()
     t1_dur = (t1_end - t1_start).total_seconds()
 
