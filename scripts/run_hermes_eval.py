@@ -33,16 +33,16 @@ def now():
     return datetime.datetime.now(datetime.timezone.utc)
 
 
-def run_hermes(prompt, timeout=600, label="agent"):
+def run_hermes(prompt, timeout=600, label="agent", cwd=None):
     """Run a prompt via hermes chat -q (one-shot, non-interactive)."""
     cmd = ["hermes", "chat", "--yolo", "--quiet", "-q", prompt]
     if model_flag:
         cmd.extend(["--model", model_flag])
-    print(f"  [{label}] Running hermes chat -q ...")
+    print(f"  [{label}] Running hermes chat -q ... (cwd={cwd})")
     try:
         result = subprocess.run(
             cmd, capture_output=True, text=True, timeout=timeout,
-            env={**os.environ}
+            env={**os.environ}, cwd=cwd
         )
         return result.stdout, result.returncode, result.stderr
     except subprocess.TimeoutExpired:
@@ -141,7 +141,7 @@ for case in cases:
         f"- Give the exact answer you would send to the user."
     )
 
-    task_stdout, task_exit, task_stderr = run_hermes(task_prompt, timeout=600, label="task")
+    task_stdout, task_exit, task_stderr = run_hermes(task_prompt, timeout=600, label="task", cwd=attempt_ws)
     t1_end = now()
     t1_dur = (t1_end - t1_start).total_seconds()
     print(f"Phase 1 completed in {t1_dur:.0f}s (exit={task_exit})")

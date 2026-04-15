@@ -99,36 +99,25 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           mkdir -p ~/.hermes
 
-          # Derive base URL from RESPONSES_API_ENDPOINT
+          # Derive base URL from RESPONSES_API_ENDPOINT (strip /v1/responses suffix)
           BASE_URL="${RESPONSES_API_ENDPOINT%/v1/responses}"
-          BASE_URL="${BASE_URL%/}"
+          BASE_URL="${BASE_URL%/}/v1"
 
           # Determine model
           MODEL="${HERMES_MODEL:-openai/gpt-4o}"
 
-          # Write Hermes config
-          cat > ~/.hermes/config.yaml << EOF
-          model:
-            provider: openai
-            model: "${MODEL}"
-          providers:
-            openai:
-              base_url: "${BASE_URL}"
-              api_key: "${OPENAI_API_KEY}"
-          agent:
-            max_turns: 90
-          tools:
-            profile: coding
-          terminal:
-            backend: local
-          EOF
+          # Configure via hermes config set (proven working approach)
+          hermes config set model.provider custom
+          hermes config set model.base_url "${BASE_URL}"
+          hermes config set model.model "${MODEL}"
+          hermes config set agent.max_turns 90
+          hermes config set tools.profile coding
+          hermes config set terminal.backend local
 
           # Write .env for API key
-          cat > ~/.hermes/.env << EOF
-          OPENAI_API_KEY=${OPENAI_API_KEY}
-          EOF
+          echo "OPENAI_API_KEY=${OPENAI_API_KEY}" > ~/.hermes/.env
 
-          echo "Hermes configured with model ${MODEL}"
+          echo "Hermes configured: provider=custom, base_url=${BASE_URL}, model=${MODEL}"
 
       - name: Sync skill repo
         env:
