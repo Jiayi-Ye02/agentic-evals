@@ -1,4 +1,4 @@
-name: Skill Evaluation (Gemini CLI)
+name: Skill Evaluation (Hermes Agent)
 
 on:
   workflow_dispatch:
@@ -8,15 +8,15 @@ on:
         required: true
         default: "agora"
       suite_ids:
-        description: "Comma-separated suite IDs, or 'all' for all suites"
+        description: "Comma-separated suite IDs, or 'all'"
         required: false
         default: "workflow"
       case_id:
         description: "Single case ID (leave empty for full suite)"
         required: false
         default: "convoai-e2e-first-success"
-      model:
-        description: "Gemini model"
+      hermes_model:
+        description: "Hermes model (e.g. openai/gpt-4o, openrouter:anthropic/claude-sonnet-4)"
         required: false
         default: ""
       skill_repo:
@@ -73,11 +73,62 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - name: Install dependencies
         run: |
           pip install pyyaml
-          npm install -g agent-browser @google/gemini-cli
-          gemini --version
+          npm install -g agent-browser @openai/codex
+
+      - name: Install Hermes Agent
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
+          source ~/.bashrc || source ~/.zshrc || true
+          export PATH="$HOME/.local/bin:$PATH"
+          hermes version
+
+      - name: Configure Hermes
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          RESPONSES_API_ENDPOINT: ${{ secrets.RESPONSES_API_ENDPOINT }}
+          HERMES_MODEL: ${{ github.event.inputs.hermes_model || '' }}
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          mkdir -p ~/.hermes
+
+          # Derive base URL from RESPONSES_API_ENDPOINT
+          BASE_URL="${RESPONSES_API_ENDPOINT%/v1/responses}"
+          BASE_URL="${BASE_URL%/}"
+
+          # Determine model
+          MODEL="${HERMES_MODEL:-openai/gpt-4o}"
+
+          # Write Hermes config
+          cat > ~/.hermes/config.yaml << EOF
+          model:
+            provider: openai
+            model: "${MODEL}"
+          providers:
+            openai:
+              base_url: "${BASE_URL}"
+              api_key: "${OPENAI_API_KEY}"
+          agent:
+            max_turns: 90
+          tools:
+            profile: coding
+          terminal:
+            backend: local
+          EOF
+
+          # Write .env for API key
+          cat > ~/.hermes/.env << EOF
+          OPENAI_API_KEY=${OPENAI_API_KEY}
+          EOF
+
+          echo "Hermes configured with model ${MODEL}"
 
       - name: Sync skill repo
         env:
@@ -128,47 +179,45 @@ jobs:
                       continue
                   cases.append({"case_id": c["case_id"], "path": cp, "user_prompt": c["input"]["user_prompt"]})
           now = datetime.datetime.now(datetime.timezone.utc)
-          run_id = f"gemini-{now.strftime('%Y%m%dT%H%M%SZ')}"
+          run_id = f"hermes-{now.strftime('%Y%m%dT%H%M%SZ')}"
           run_dir = f"runs/{run_id}"
           os.makedirs(f"{run_dir}/case-artifacts", exist_ok=True)
           os.makedirs(f"{run_dir}/case-results", exist_ok=True)
-          manifest = {"run_mode": "single-run", "run_id": run_id, "runtime": "gemini-cli",
+          manifest = {"run_mode": "single-run", "run_id": run_id, "runtime": "hermes-agent",
                       "target_id": target_id, "suite_ids": suite_ids,
                       "case_ids": [c["case_id"] for c in cases],
-                      "started_at": now.isoformat(), "evidence_mode": "gemini-cli-two-phase"}
+                      "started_at": now.isoformat(), "evidence_mode": "hermes-two-phase"}
           json.dump(manifest, open(f"{run_dir}/manifest.json", "w"), indent=2)
-          # Write cases to a temp file to avoid GITHUB_OUTPUT multiline issues
-          json.dump(cases, open("/tmp/gemini-eval-cases.json", "w"))
+          json.dump(cases, open("/tmp/hermes-eval-cases.json", "w"))
           with open(os.environ["GITHUB_OUTPUT"], "a") as out:
-              out.write(f"run_id={run_id}\n")
               out.write(f"run_dir={run_dir}\n")
           print(f"Resolved {len(cases)} cases -> {run_dir}")
           PY
 
       - name: Run two-phase evaluation
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GOOGLE_GEMINI_BASE_URL: ${{ secrets.GOOGLE_GEMINI_BASE_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          RESPONSES_API_ENDPOINT: ${{ secrets.RESPONSES_API_ENDPOINT }}
           AGORA_APP_ID: ${{ secrets.AGORA_APP_ID }}
           AGORA_APP_CERTIFICATE: ${{ secrets.AGORA_APP_CERTIFICATE }}
           RUN_DIR: ${{ steps.resolve.outputs.run_dir }}
-          GEMINI_MODEL: ${{ github.event.inputs.model || '' }}
+          HERMES_MODEL: ${{ github.event.inputs.hermes_model || '' }}
         run: |
+          export PATH="$HOME/.local/bin:$PATH"
           source /tmp/agora-credentials.env
-          python3 scripts/run_gemini_eval.py
+          python3 scripts/run_hermes_eval.py
 
       - name: Generate report
         if: always()
         env:
           RUN_DIR: ${{ steps.resolve.outputs.run_dir }}
-        run: |
-          python3 scripts/generate_report.py
+        run: python3 scripts/generate_report.py
 
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: eval-run-gemini-${{ env.TARGET_ID }}-${{ github.run_id }}
+          name: eval-run-hermes-${{ env.TARGET_ID }}-${{ github.run_id }}
           path: ${{ steps.resolve.outputs.run_dir }}
           retention-days: 30
           if-no-files-found: warn
@@ -178,13 +227,10 @@ jobs:
         env:
           RUN_DIR: ${{ steps.resolve.outputs.run_dir }}
         run: |
-          REPORT="${RUN_DIR}/report.md"
-          if [ -f "$REPORT" ]; then
-            echo "## Skill Eval Report (Gemini CLI)" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f "${RUN_DIR}/report.md" ]; then
+            echo "## Skill Eval Report (Hermes Agent)" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            cat "$REPORT" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "::warning::report.md not found"
+            cat "${RUN_DIR}/report.md" >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Post PR comment
@@ -197,14 +243,14 @@ jobs:
           github-token: ${{ github.token }}
           script: |
             const fs = require('fs');
-            const reportPath = `${process.env.RUN_DIR}/report.md`;
-            if (!fs.existsSync(reportPath)) return;
-            const report = fs.readFileSync(reportPath, 'utf8');
+            const rp = `${process.env.RUN_DIR}/report.md`;
+            if (!fs.existsSync(rp)) return;
+            const report = fs.readFileSync(rp, 'utf8');
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.payload.pull_request.number,
-              body: `## Skill Eval Report (Gemini CLI)\n\n${report}\n\n---\n[Download artifacts](${process.env.RUN_URL})`,
+              body: `## Skill Eval Report (Hermes Agent)\n\n${report}\n\n---\n[Download artifacts](${process.env.RUN_URL})`,
             });
 
       - name: Report results

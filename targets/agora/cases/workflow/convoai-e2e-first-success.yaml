@@ -27,32 +27,37 @@ assert:
   required:
     - description: "The official Next.js quickstart repo is cloned."
       pass_criteria:
-        - "Session evidence shows a git clone for `agent-quickstart-nextjs` or the equivalent GitHub URL."
+        - "Session evidence shows a git clone command targeting `agent-quickstart-nextjs` or the GitHub URL `https://github.com/AgoraIO-Conversational-AI/agent-quickstart-nextjs`."
+        - "A directory exists in the workspace containing the quickstart files (package.json with agora dependencies, app/api/invite-agent/, etc.) regardless of the directory name."
       fail_signals:
         - "No clone command observed — agent generates code from scratch."
-        - "Agent clones a different repo."
+        - "Agent clones a different repo that is not the official quickstart."
       evidence_scope:
         - "accepted-session.jsonl"
+        - "workspace-files"
 
     - description: "Agora credentials are configured in the demo's env file."
       pass_criteria:
-        - "Session evidence shows the agent writing a .env or .env.local file with Agora App ID and App Certificate values."
+        - "Session evidence shows the agent writing a .env or .env.local file with non-empty Agora App ID and App Certificate values."
+        - "The env file exists somewhere in the workspace (search recursively for .env.local or .env) and contains NEXT_PUBLIC_AGORA_APP_ID and NEXT_AGORA_APP_CERTIFICATE with non-placeholder values."
       fail_signals:
-        - "No env file is written."
-        - "Env file contains empty or placeholder values for Agora credentials."
+        - "No env file is written anywhere in the workspace."
+        - "Env file contains empty or placeholder values (e.g. your_agora_app_id)."
       evidence_scope:
         - "accepted-session.jsonl"
+        - "workspace-files"
 
     - description: "A dev server is started and a local URL is reported."
       pass_criteria:
         - "Session evidence shows a dev server start command (pnpm dev, npm run dev, or equivalent)."
-        - "The final answer includes a local URL (e.g. http://localhost:3000)."
+        - "The final answer includes a local URL (e.g. http://localhost:3000), OR a process is listening on port 3000 at verification time."
       fail_signals:
         - "No dev server start command observed."
-        - "Final answer does not mention a running URL."
+        - "Final answer does not mention a running URL and no process is listening on port 3000."
       evidence_scope:
         - "accepted-session.jsonl"
         - "final-answer.txt"
+        - "evaluator-verification"
 
     - description: "The demo page loads successfully in a browser."
       pass_criteria:

@@ -8,13 +8,13 @@ on:
         required: true
         default: "agora"
       suite_ids:
-        description: "Comma-separated suite IDs, or 'all' for defaults"
+        description: "Comma-separated suite IDs, or 'all' for all suites"
         required: false
-        default: "all"
+        default: "workflow"
       case_id:
         description: "Single case ID (leave empty for full suite)"
         required: false
-        default: ""
+        default: "convoai-e2e-first-success"
       model:
         description: "Model for Codex"
         required: false
@@ -132,8 +132,8 @@ jobs:
 
       - name: Build evaluator prompt
         env:
-          SUITE_IDS: ${{ github.event.inputs.suite_ids || 'all' }}
-          CASE_ID: ${{ github.event.inputs.case_id || '' }}
+          SUITE_IDS: ${{ github.event.inputs.suite_ids || 'workflow' }}
+          CASE_ID: ${{ github.event.inputs.case_id || 'convoai-e2e-first-success' }}
           RUN_MODE: ${{ github.event.inputs.run_mode || 'single-run' }}
           VARIANT_A_URL: ${{ github.event.inputs.variant_a_url || '' }}
           VARIANT_B_URL: ${{ github.event.inputs.variant_b_url || '' }}
@@ -142,10 +142,6 @@ jobs:
           # For PR triggers, default to e2e case only
           EFFECTIVE_CASE_ID="${CASE_ID}"
           EFFECTIVE_SUITE_IDS="${SUITE_IDS}"
-          if [ "$IS_PR" = "true" ] && [ -z "$EFFECTIVE_CASE_ID" ]; then
-            EFFECTIVE_CASE_ID="convoai-e2e-first-success"
-            EFFECTIVE_SUITE_IDS="workflow"
-          fi
 
           cat > /tmp/eval-prompt.txt << 'HEREDOC'
           You are the skill-eval evaluator agent.
