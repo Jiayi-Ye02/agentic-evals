@@ -1,24 +1,23 @@
 #!/usr/bin/env python3
-"""Two-phase OpenClaw evaluation via acpx: task agent + evaluator agent."""
-import json, subprocess, os, datetime, re, sys, time
+"""Two-phase Hermes Agent evaluation: task agent + Codex evaluator."""
+import json, subprocess, os, datetime, re, sys
 from pathlib import Path
 
-# Force unbuffered output so prints appear in CI logs
 sys.stdout.reconfigure(line_buffering=True)
 
-print("=== OpenClaw eval script starting ===", flush=True)
+print("=== Hermes eval script starting ===", flush=True)
 
 try:
     import yaml
 except ImportError:
-    print("ERROR: pyyaml not installed, installing...", flush=True)
+    print("pyyaml not installed, installing...", flush=True)
     subprocess.run([sys.executable, "-m", "pip", "install", "pyyaml", "-q"])
     import yaml
 
 run_dir = Path(os.environ["RUN_DIR"])
 print(f"RUN_DIR: {run_dir}", flush=True)
 
-cases_file = Path("/tmp/eval-cases.json")
+cases_file = Path("/tmp/hermes-eval-cases.json")
 if not cases_file.exists():
     print(f"ERROR: {cases_file} not found!", flush=True)
     sys.exit(1)
@@ -26,44 +25,37 @@ cases = json.loads(cases_file.read_text())
 print(f"Cases: {len(cases)}", flush=True)
 
 repo_root = Path.cwd()
+model_flag = os.environ.get("HERMES_MODEL", "")
 print(f"repo_root: {repo_root}", flush=True)
+
 
 def now():
     return datetime.datetime.now(datetime.timezone.utc)
 
-def run_openclaw(prompt, timeout=600, label="agent"):
-    """Run a prompt via acpx openclaw with persistent session for full tool access."""
-    print(f"  [{label}] Creating new session and sending prompt...")
-    
-    # Step 1: Ensure a session exists
-    subprocess.run(
-        ["acpx", "--approve-all", "openclaw", "sessions", "ensure"],
-        capture_output=True, text=True, timeout=30
-    )
-    
-    # Step 2: Send prompt to the session (not exec)
-    cmd = ["acpx", "--approve-all", "--format", "json", "openclaw", "prompt", prompt]
+
+def run_hermes(prompt, timeout=600, label="agent", cwd=None):
+    """Run a prompt via hermes chat -q (one-shot, non-interactive)."""
+    cmd = ["hermes", "chat", "--yolo", "--quiet", "-q", prompt]
+    if model_flag:
+        cmd.extend(["--model", model_flag])
+    print(f"  [{label}] Running hermes chat -q ... (cwd={cwd})")
     try:
         result = subprocess.run(
-            cmd, stdout=subprocess.PIPE, stderr=None,
-            text=True, timeout=timeout,
-            env={**os.environ}
+            cmd, capture_output=True, text=True, timeout=timeout,
+            env={**os.environ}, cwd=cwd
         )
-        return result.stdout, result.returncode
+        return result.stdout, result.returncode, result.stderr
     except subprocess.TimeoutExpired:
         print(f"  [{label}] TIMEOUT after {timeout}s")
-        return json.dumps({"error": f"TIMEOUT after {timeout}s"}), -1
+        return "", -1, f"TIMEOUT after {timeout}s"
+
 
 def run_evaluator(prompt, timeout=300):
-    """Run evaluator via Codex CLI with custom API endpoint."""
-    # Write Codex config to use the same gateway as OpenClaw
+    """Run evaluator via Codex CLI."""
     codex_home = Path.home() / ".codex"
     codex_home.mkdir(exist_ok=True)
     endpoint = os.environ.get("RESPONSES_API_ENDPOINT", "")
     if endpoint:
-        # Codex appends /responses to base_url, so we need base_url to end with /v1
-        # RESPONSES_API_ENDPOINT = http://host:port/v1/responses
-        # base_url should be = http://host:port/v1
         base_url = endpoint.replace("/responses", "").rstrip("/")
         config = (
             'model_provider = "OpenAI"\n'
@@ -77,7 +69,6 @@ def run_evaluator(prompt, timeout=300):
             'requires_openai_auth = true\n'
         )
         (codex_home / "config.toml").write_text(config)
-        # Also write auth.json so Codex has the API key
         api_key = os.environ.get("OPENAI_API_KEY", "")
         if api_key:
             auth = json.dumps({"auth_mode": "apikey", "OPENAI_API_KEY": api_key})
@@ -99,51 +90,6 @@ def run_evaluator(prompt, timeout=300):
         print(f"  [eval] TIMEOUT after {timeout}s")
         return "", -1
 
-def extract_response_text(raw_json):
-    """Extract the agent's text response from acpx NDJSON output."""
-    text_parts = []
-    for line in raw_json.strip().split("\n"):
-        if not line.strip():
-            continue
-        try:
-            msg = json.loads(line)
-            # Check for agent_message_chunk in session/update
-            params = msg.get("params", {})
-            update = params.get("update", {})
-            if update.get("sessionUpdate") == "agent_message_chunk":
-                content = update.get("content", {})
-                if content.get("type") == "text":
-                    text_parts.append(content.get("text", ""))
-            # Also check for direct result with text (some ACP responses)
-            result = msg.get("result", {})
-            if isinstance(result, dict) and result.get("text"):
-                text_parts.append(result["text"])
-        except:
-            continue
-    return "".join(text_parts)
-
-def extract_tool_calls(raw_json):
-    """Extract tool call info from acpx NDJSON output."""
-    tools = []
-    for line in raw_json.strip().split("\n"):
-        if not line.strip():
-            continue
-        try:
-            msg = json.loads(line)
-            params = msg.get("params", {})
-            update = params.get("update", {})
-            su = update.get("sessionUpdate", "")
-            # OpenClaw uses various tool-related session updates
-            if su in ("tool_call_start", "tool_call", "tool_use_start",
-                       "tool_use", "tool_result", "tool_output"):
-                tools.append({"type": su, "data": update})
-        except:
-            continue
-    return tools
-
-def count_ndjson_events(raw_json):
-    """Count total NDJSON lines for diagnostics."""
-    return sum(1 for line in raw_json.strip().split("\n") if line.strip())
 
 for case in cases:
     cid = case["case_id"]
@@ -152,15 +98,9 @@ for case in cases:
     print(f"{'='*60}")
 
     # Create workspace
-    # create_case_workspace.sh expects source_workspace to be PARENT of agentic-evals/
-    ws = Path(f"/tmp/openclaw-eval-{cid}")
+    ws = Path(f"/tmp/hermes-eval-{cid}")
     ws.mkdir(parents=True, exist_ok=True)
-    source_ws = repo_root.parent  # parent dir that contains agentic-evals/
-    print(f"repo_root: {repo_root}")
-    print(f"source_ws: {source_ws}")
-    print(f"source_ws/agentic-evals exists: {(source_ws / 'agentic-evals').exists()}")
-    print(f"repo_root/.agents/skills/agora/SKILL.md exists: {(repo_root / '.agents/skills/agora/SKILL.md').exists()}")
-    print(f"repo_root/.agents/skills/agora/references/conversational-ai/quickstarts.md exists: {(repo_root / '.agents/skills/agora/references/conversational-ai/quickstarts.md').exists()}")
+    source_ws = repo_root
     result = subprocess.run(
         ["bash", ".agents/skills/skills-evaluation/scripts/create_case_workspace.sh",
          str(source_ws), str(ws), cid, "--target", os.environ.get("TARGET_ID", "agora")],
@@ -178,29 +118,11 @@ for case in cases:
         subprocess.run(["cp", "-rL", src_agents, dst_agents], capture_output=True)
         copied = subprocess.run(["find", dst_agents, "-type", "f"], capture_output=True, text=True)
         print(f"Fallback: copied {copied.stdout.count(chr(10))} files to {dst_agents}")
-    else:
-        # Verify workspace has skill files
-        qs = Path(attempt_ws) / ".agents/skills/agora/references/conversational-ai/quickstarts.md"
-        print(f"quickstarts.md in workspace: {qs.exists()}")
     print(f"Workspace: {attempt_ws}")
 
-    # --- Phase 1: Task Agent ---
-    # Reset session for clean state and enable elevated mode
-    subprocess.run(
-        ["acpx", "--approve-all", "openclaw", "sessions", "new"],
-        capture_output=True, text=True, timeout=30
-    )
-    time.sleep(3)
-    # Enable auto-approve for shell commands
-    subprocess.run(
-        ["acpx", "--approve-all", "openclaw", "prompt", "/elevated full"],
-        capture_output=True, text=True, timeout=30
-    )
-    time.sleep(2)
-    print("  Elevated mode set to full (auto-approve)", flush=True)
-
+    # --- Phase 1: Task Agent (Hermes) ---
     t1_start = now()
-    print(f"\n--- Phase 1: Task Agent ({t1_start.isoformat()}) ---", flush=True)
+    print(f"\n--- Phase 1: Task Agent / Hermes ({t1_start.isoformat()}) ---", flush=True)
 
     task_prompt = (
         f"You are working in workspace: {attempt_ws}\n\n"
@@ -213,78 +135,50 @@ for case in cases:
         f"Requirements:\n"
         f"- Treat {attempt_ws} as your only workspace.\n"
         f"- Keep all file reads, writes, and shell commands inside it.\n"
-        f"- The environment variables AGORA_APP_ID and AGORA_APP_CERTIFICATE are set and available via $AGORA_APP_ID and $AGORA_APP_CERTIFICATE in shell commands.\n"
-        f"- If git clone over HTTPS fails, use tarball download instead: curl -L https://github.com/OWNER/REPO/archive/refs/heads/main.tar.gz | tar xz\n"
+        f"- The environment variables AGORA_APP_ID and AGORA_APP_CERTIFICATE are set and available.\n"
+        f"- If git clone over HTTPS fails, use tarball download instead: "
+        f"curl -L https://github.com/OWNER/REPO/archive/refs/heads/main.tar.gz | tar xz\n"
         f"- Give the exact answer you would send to the user."
     )
 
-    task_raw, task_exit = run_openclaw(task_prompt, timeout=600, label="task")
-
-    # Retry up to 2 more times if the agent times out or produces no output
-    MAX_RETRIES = 3
-    for attempt in range(2, MAX_RETRIES + 1):
-        task_response_check = extract_response_text(task_raw)
-        is_timeout = '"error"' in task_raw and "TIMEOUT" in task_raw
-        is_empty = not task_response_check.strip()
-        if not is_timeout and not is_empty:
-            break
-        print(f"  [task] Attempt {attempt - 1} failed (timeout={is_timeout}, empty={is_empty}). Retrying ({attempt}/{MAX_RETRIES})...", flush=True)
-        # Reset session for clean state
-        subprocess.run(
-            ["acpx", "--approve-all", "openclaw", "sessions", "new"],
-            capture_output=True, text=True, timeout=30
-        )
-        time.sleep(3)
-        subprocess.run(
-            ["acpx", "--approve-all", "openclaw", "prompt", "/elevated full"],
-            capture_output=True, text=True, timeout=30
-        )
-        time.sleep(2)
-        task_raw, task_exit = run_openclaw(task_prompt, timeout=600, label=f"task-retry{attempt}")
-
+    task_stdout, task_exit, task_stderr = run_hermes(task_prompt, timeout=600, label="task", cwd=attempt_ws)
     t1_end = now()
     t1_dur = (t1_end - t1_start).total_seconds()
-
-    task_events = count_ndjson_events(task_raw)
-    print(f"Phase 1 completed in {t1_dur:.0f}s (exit={task_exit}, events={task_events})")
+    print(f"Phase 1 completed in {t1_dur:.0f}s (exit={task_exit})")
 
     art_dir = run_dir / "case-artifacts" / cid
     art_dir.mkdir(parents=True, exist_ok=True)
-    (art_dir / "task-agent-raw.json").write_text(task_raw)
+    (art_dir / "task-agent-raw.txt").write_text(task_stdout)
+    if task_stderr:
+        (art_dir / "task-agent-stderr.txt").write_text(task_stderr)
 
-    task_response = extract_response_text(task_raw)
-    task_tools = extract_tool_calls(task_raw)
+    task_response = task_stdout
     print(f"Phase 1 response (first 500):\n{task_response[:500]}")
-    print(f"Phase 1 tool calls: {len(task_tools)}")
     (art_dir / "final-answer.txt").write_text(task_response + "\n")
 
     # Workspace state
     ws_files = subprocess.run(
         ["find", attempt_ws, "-type", "f", "-maxdepth", "4"],
         capture_output=True, text=True).stdout
-    ws_files_short = ws_files[:2000]  # Limit for evaluator prompt
     print(f"Workspace files ({ws_files.count(chr(10))} files):\n{ws_files[:500]}")
 
-    # --- Phase 2: Evaluator Agent (using Gemini CLI for reliable text judgment) ---
+    # --- Phase 2: Evaluator Agent (Codex) ---
     t2_start = now()
     print(f"\n--- Phase 2: Evaluator ({t2_start.isoformat()}) ---")
 
     case_data = yaml.safe_load(open(case["path"]))
     assertions_text = json.dumps(case_data.get("assert", {}).get("required", []), indent=2)
 
-    # Keep evaluator prompt concise and action-oriented so OpenClaw engages
     eval_prompt = (
         f"Please analyze this agent's work and give me your judgment.\n\n"
         f"The agent was asked to: {case['user_prompt'][:300]}\n\n"
         f"The agent responded:\n{task_response[:1500]}\n\n"
         f"The agent's workspace is at: {attempt_ws}\n"
         f"Files in workspace: {ws_files.count(chr(10))}\n\n"
-        f"IMPORTANT: The ACP protocol does not record tool calls, so you MUST verify by inspecting the workspace directly:\n"
-        f"- Search for the quickstart project files: find {attempt_ws} -name 'package.json' -path '*/app/*' or look for directories containing the Next.js quickstart structure (app/api/invite-agent/, components/, etc.)\n"
-        f"- Search for .env.local files recursively: find {attempt_ws} -name '.env.local'\n"
-        f"- Check if the env file contains non-empty NEXT_PUBLIC_AGORA_APP_ID and NEXT_AGORA_APP_CERTIFICATE values\n"
-        f"- Check if a dev server process is running: ss -ltnp | grep 3000 or curl http://localhost:3000\n"
-        f"- Do NOT assume a fixed directory name like 'agent-quickstart-nextjs' — the agent may have cloned into a different directory name.\n"
+        f"IMPORTANT: Verify by inspecting the workspace directly:\n"
+        f"- Check if {attempt_ws}/agent-quickstart-nextjs exists (git clone evidence)\n"
+        f"- Check if a .env.local file exists with Agora credentials\n"
+        f"- Check if a dev server process is running (use: lsof -i :3000 or curl http://localhost:3000)\n"
         f"- Run these checks yourself before judging.\n\n"
         f"Check these assertions and tell me pass or fail for each:\n{assertions_text}\n\n"
         f"Write your answer as a JSON object with this structure:\n"
@@ -297,18 +191,10 @@ for case in cases:
     eval_response, eval_exit = run_evaluator(eval_prompt)
     t2_end = now()
     t2_dur = (t2_end - t2_start).total_seconds()
-
-    eval_events = 1  # Codex returns single response
     print(f"Phase 2 completed in {t2_dur:.0f}s (exit={eval_exit})")
 
     (art_dir / "evaluator-raw.txt").write_text(eval_response)
-
     print(f"Phase 2 response (first 800):\n{eval_response[:800]}")
-
-    # If no response text extracted, try to get it from the raw output directly
-    if not eval_response.strip():
-        print("WARNING: No response text extracted from evaluator. Dumping raw for debug:")
-        print(eval_response[:1000])
 
     # Parse judgment
     case_result = {
@@ -343,9 +229,10 @@ for case in cases:
     (run_dir / "case-results" / f"{cid}.json").write_text(
         json.dumps(case_result, indent=2) + "\n")
 
-    # Evidence
+    # Evidence bundle
     evidence = {
-        "task_agent_output": task_raw[:50000],
+        "task_agent_output": task_stdout[:50000],
+        "task_agent_stderr": (task_stderr or "")[:10000],
         "evaluator_output": eval_response[:50000],
         "workspace_files": ws_files,
     }
