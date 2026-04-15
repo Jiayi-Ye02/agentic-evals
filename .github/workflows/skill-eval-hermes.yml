@@ -1,4 +1,4 @@
-name: Skill Evaluation (Hermes Agent)
+name: Skill Evaluation (Hermes Single-Phase)
 
 on:
   workflow_dispatch:
@@ -79,9 +79,7 @@ jobs:
           node-version: "22"
 
       - name: Install dependencies
-        run: |
-          pip install pyyaml
-          npm install -g agent-browser @openai/codex
+        run: pip install pyyaml
 
       - name: Install Hermes Agent
         run: |
@@ -172,10 +170,10 @@ jobs:
           run_dir = f"runs/{run_id}"
           os.makedirs(f"{run_dir}/case-artifacts", exist_ok=True)
           os.makedirs(f"{run_dir}/case-results", exist_ok=True)
-          manifest = {"run_mode": "single-run", "run_id": run_id, "runtime": "hermes-agent",
+          manifest = {"run_mode": "single-run", "run_id": run_id, "runtime": "hermes-single-phase",
                       "target_id": target_id, "suite_ids": suite_ids,
                       "case_ids": [c["case_id"] for c in cases],
-                      "started_at": now.isoformat(), "evidence_mode": "hermes-two-phase"}
+                      "started_at": now.isoformat(), "evidence_mode": "hermes-single-phase"}
           json.dump(manifest, open(f"{run_dir}/manifest.json", "w"), indent=2)
           json.dump(cases, open("/tmp/hermes-eval-cases.json", "w"))
           with open(os.environ["GITHUB_OUTPUT"], "a") as out:
@@ -183,7 +181,7 @@ jobs:
           print(f"Resolved {len(cases)} cases -> {run_dir}")
           PY
 
-      - name: Run two-phase evaluation
+      - name: Run single-phase evaluation
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           RESPONSES_API_ENDPOINT: ${{ secrets.RESPONSES_API_ENDPOINT }}
@@ -194,7 +192,7 @@ jobs:
         run: |
           export PATH="$HOME/.local/bin:$PATH"
           source /tmp/agora-credentials.env
-          python3 scripts/run_hermes_eval.py
+          python3 scripts/run_hermes_subagent_eval.py
 
       - name: Generate report
         if: always()
@@ -217,7 +215,7 @@ jobs:
           RUN_DIR: ${{ steps.resolve.outputs.run_dir }}
         run: |
           if [ -f "${RUN_DIR}/report.md" ]; then
-            echo "## Skill Eval Report (Hermes Agent)" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Skill Eval Report (Hermes Single-Phase)" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
             cat "${RUN_DIR}/report.md" >> "$GITHUB_STEP_SUMMARY"
           fi
@@ -239,7 +237,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.payload.pull_request.number,
-              body: `## Skill Eval Report (Hermes Agent)\n\n${report}\n\n---\n[Download artifacts](${process.env.RUN_URL})`,
+              body: `## Skill Eval Report (Hermes Single-Phase)\n\n${report}\n\n---\n[Download artifacts](${process.env.RUN_URL})`,
             });
 
       - name: Report results
