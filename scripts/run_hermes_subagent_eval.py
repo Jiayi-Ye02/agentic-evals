@@ -86,8 +86,11 @@ def build_prompt(case, attempt_ws, assertions_text, cid):
         f"- Check cloned repo directory exists with expected files\n"
         f"- Check .env.local has real Agora credentials (not placeholders)\n"
         f"- Check port 3000 is listening (lsof -i :3000 or curl -I http://localhost:3000)\n"
-        f"- For browser check: curl http://localhost:3000 and verify HTML contains page content.\n"
-        f"  Do NOT use agent-browser or Playwright. curl with HTTP 200 + valid HTML = pass.\n\n"
+        f"- For browser check: use your browser tool to open http://localhost:3000 and verify\n"
+        f"  the page loads with expected content. If the browser tool fails with a network error,\n"
+        f"  retry once with http://127.0.0.1:3000. If that also fails, fall back to curl and\n"
+        f"  check the HTML body contains expected page content (e.g. Next.js markup, page title).\n"
+        f"  curl 200 + valid HTML body is acceptable as a pass for the browser assertion.\n\n"
         f"## OUTPUT\n\n"
         f"End your response with exactly:\n\n"
         f"VERIFICATION_JSON:\n"
@@ -95,7 +98,6 @@ def build_prompt(case, attempt_ws, assertions_text, cid):
         f'"assertions": [{{"summary": "...", "status": "pass or fail", "evidence": ["..."]}}], '
         f'"notes": ["..."]}}\n\n'
         f'"status" = "pass" only if ALL assertions pass.\n'
-        f"curl 200 + valid HTML body = browser check pass (no Playwright needed).\n"
     )
 
 
