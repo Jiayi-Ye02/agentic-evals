@@ -85,7 +85,7 @@ jobs:
 
       - name: Install Hermes Agent
         run: |
-          curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
+          curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash -s -- --skip-setup
           source ~/.bashrc || source ~/.zshrc || true
           export PATH="$HOME/.local/bin:$PATH"
           hermes version
