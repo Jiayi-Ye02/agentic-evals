@@ -136,8 +136,12 @@ for case in cases:
         f"- Treat {attempt_ws} as your only workspace.\n"
         f"- Keep all file reads, writes, and shell commands inside it.\n"
         f"- The environment variables AGORA_APP_ID and AGORA_APP_CERTIFICATE are set and available.\n"
+        f"  Use their literal values (echo $AGORA_APP_ID) when writing config files — do NOT write shell variable syntax like ${{AGORA_APP_ID}} into files.\n"
         f"- If git clone over HTTPS fails, use tarball download instead: "
         f"curl -L https://github.com/OWNER/REPO/archive/refs/heads/main.tar.gz | tar xz\n"
+        f"- When starting a dev server (e.g. npm run dev, pnpm dev), you MUST launch it as a background process "
+        f"(e.g. `nohup pnpm dev > /dev/null 2>&1 &` or use the process tool) so it keeps running after you finish.\n"
+        f"- After starting the server, verify it is listening (e.g. curl -I http://localhost:3000) before reporting success.\n"
         f"- Give the exact answer you would send to the user."
     )
 
