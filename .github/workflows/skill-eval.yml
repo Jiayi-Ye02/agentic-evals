@@ -300,4 +300,7 @@ jobs:
           PASS=$(grep -rl '"status": "pass"' "$RESULTS_DIR" 2>/dev/null | wc -l)
           BLOCKED=$(grep -rl '"status": "blocked"' "$RESULTS_DIR" 2>/dev/null | wc -l)
           echo "Results: ${PASS} pass, ${FAIL} fail, ${BLOCKED} blocked"
-          [ "$FAIL" -gt 0 ] && { echo "::error::${FAIL} case(s) failed"; exit 1; }
+          if [ "$FAIL" -gt 0 ]; then
+            echo "::error::${FAIL} case(s) failed"
+            exit 1
+          fi
