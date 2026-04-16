@@ -53,12 +53,22 @@ def checkout_repo(repo_url: str, ref: str, checkout_dir: Path) -> None:
     run(["git", "clone", "--depth", "1", "--branch", ref, repo_url, str(checkout_dir)])
 
 
+def resolve_eval_repo(source_workspace: Path) -> Path:
+    nested_repo = source_workspace / "agentic-evals"
+    if nested_repo.is_dir():
+        return nested_repo
+    if (source_workspace / "AGENT.md").is_file():
+        return source_workspace
+    raise SystemExit(
+        f"missing local eval repo under {source_workspace}; expected either "
+        f"{nested_repo} or {source_workspace / 'AGENT.md'}"
+    )
+
+
 def main() -> int:
     args = parse_args()
     source_workspace = Path(args.source_workspace).resolve()
-    local_eval_repo = source_workspace / "agentic-evals"
-    if not local_eval_repo.is_dir():
-        raise SystemExit(f"missing local eval repo: {local_eval_repo}")
+    local_eval_repo = resolve_eval_repo(source_workspace)
 
     parsed = parse_github_skill_url(args.variant_url)
     output_root = Path(args.output_root).resolve()

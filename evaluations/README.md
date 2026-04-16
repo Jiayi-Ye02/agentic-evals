@@ -38,5 +38,5 @@ evaluations/
 
 - Evaluations **reference** targets and cases — they do not redefine them.
 - Rubrics in `rubrics/` define scoring dimensions — evaluations reference them.
-- The evaluator (skills-evaluation) handles both single-target runs and evaluation runs.
+- The evaluator (`.agents/skills/skills-evaluation`) handles both single-target runs and evaluation runs.
 - Run artifacts go to `runs/<run_id>/` with an extended structure for multi-variant results.

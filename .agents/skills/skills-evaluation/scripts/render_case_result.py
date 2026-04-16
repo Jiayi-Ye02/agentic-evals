@@ -20,7 +20,6 @@ payload = json.loads(in_path.read_text(encoding='utf-8'))
 required = [
     'case_id',
     'workspace_root',
-    'session_path',
     'status',
     'blocked_reason',
     'assertions',
@@ -31,11 +30,15 @@ for key in required:
     if key not in payload:
         raise SystemExit(f'missing required key: {key}')
 
+if 'session_path' not in payload and 'evidence_path' not in payload:
+    raise SystemExit('missing required key: session_path or evidence_path')
+
 normalized = {
     'case_id': payload['case_id'],
     'workspace_root': payload['workspace_root'],
     'thread_id': payload.get('thread_id'),
-    'session_path': payload['session_path'],
+    'session_path': payload.get('session_path'),
+    'evidence_path': payload.get('evidence_path', payload.get('session_path')),
     'status': payload['status'],
     'blocked_reason': payload['blocked_reason'],
     'assertions': payload['assertions'],

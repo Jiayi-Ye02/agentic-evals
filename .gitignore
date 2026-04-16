@@ -4,3 +4,10 @@ targets/voice-ai-integration/deferred-cases/
 # keep .agents/skills tracked for CI
 .agents/skills/*/node_modules/
 skills-lock.json
+__pycache__/
+*.pyc
+.DS_Store
+.kiro/
+.kiro-runtime/
+.skill-eval-source/
+agent-quickstart-nextjs/

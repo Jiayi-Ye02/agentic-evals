@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "case_id",
+    "workspace_root",
+    "thread_id",
+    "session_path",
+    "evidence_path",
+    "status",
+    "blocked_reason",
+    "assertions",
+    "notes",
+    "suggested_fix_files"
+  ],
+  "properties": {
+    "case_id": {
+      "type": "string"
+    },
+    "workspace_root": {
+      "type": "string"
+    },
+    "thread_id": {
+      "type": ["string", "null"]
+    },
+    "session_path": {
+      "type": ["string", "null"]
+    },
+    "evidence_path": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pass", "fail", "blocked"]
+    },
+    "blocked_reason": {
+      "type": ["string", "null"],
+      "enum": ["environment", "unclear-rule", "insufficient-evidence", null]
+    },
+    "assertions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["summary", "status", "evidence"],
+        "properties": {
+          "summary": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pass", "fail", "blocked"]
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "suggested_fix_files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

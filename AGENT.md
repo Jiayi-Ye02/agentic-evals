@@ -22,6 +22,9 @@ The evaluator must not invent new rules when this repo is silent.
 
 If a case cannot be judged reliably from the available evidence, mark it `blocked`.
 
+The evaluator runtime is Codex.
+The execution runtime under test may be Codex or Kiro.
+
 The current default target is `voice-ai-integration`.
 
 ## Run Modes
@@ -49,9 +52,9 @@ Every evaluator that uses this repo should follow this order:
 8. If `run_mode` is `ab-urls`, prepare 2 variant source workspaces before any case execution.
 9. Create a parent temp directory for isolated per-case workspaces.
 10. Execute each case in its own fresh isolated workspace.
-11. Locate the accepted fresh-agent child session for each case.
-12. Save the accepted child session for each case.
-13. Render a readable `transcript.md` from the accepted child sessions.
+11. Collect the authoritative runtime evidence for each case.
+12. Derive `accepted-session.json` from that runtime evidence when practical.
+13. Render a readable `transcript.md` from the accepted evidence view.
 14. Write one `case-results/<case_id>.json` file per case.
 15. Write `report.md`.
 16. If `run_mode` is `ab-urls`, join the 2 variant result sets by `case_id`, then write `comparison.json` and the top-level comparison `report.md`.
@@ -89,7 +92,7 @@ agentic-evals/
 - `targets/<target_id>/cases/<suite_id>/suite.yaml` defines a runnable suite and lists its cases.
 - `targets/<target_id>/cases/<suite_id>/<case_id>.yaml` holds active cases, co-located with their suite.
 - `targets/<target_id>/deferred-cases/` holds backlog cases that are intentionally not active.
-- `docs/session-evidence.md` defines the dual-mode session evidence model for Codex and OpenClaw runtimes.
+- `docs/session-evidence.md` defines the runtime-native evidence model for Codex and Kiro execution runtimes under a Codex evaluator.
 
 Deferred cases are not part of the runnable active suite set unless a human explicitly promotes them.
 
@@ -105,7 +108,8 @@ runs/<run_id>/
 ├── case-artifacts/
 │   ├── <case_id>/
 │   │   ├── accepted-session.json
-│   │   └── final-answer.txt
+│   │   ├── final-answer.txt
+│   │   └── raw-hook-trace.jsonl  # required when execution_runtime=kiro
 │   └── ...
 ├── transcript.md
 ├── case-results/
@@ -123,11 +127,15 @@ runs/<run_id>/
 - `target_skill_path`
 - `started_at`
 - `model` if available
+- `evaluator_runtime` with value `codex`
+- `execution_runtime` with one of:
+  - `codex`
+  - `kiro`
 - `workspace_mode` with value `isolated-per-case`
 - `case_workspace_root` for the parent temp directory used for per-case workspaces
 - `evidence_mode` with one of:
   - `codex-local-session-store`
-  - `openclaw-session-history`
+  - `kiro-hook-trace`
 - `notes` if the environment is unusual
 
 It is also acceptable to record extra fields such as `selected_case_ids`, `resolved_case_ids`, `source_workspace`, `run_state`, `variant_label`, or `variant_source_url`.
@@ -179,6 +187,8 @@ Rules:
 - `selected_case_ids` when applicable
 - `resolved_case_ids`
 - `started_at`
+- `evaluator_runtime` with value `codex`
+- `execution_runtime`
 - `evidence_mode`
 - `variants` with A/B source URLs and relative artifact paths
 - `notes` when the environment is unusual
@@ -222,24 +232,28 @@ Only use statuses allowed by `targets/<target_id>/target.yaml`.
 
 Preferred evidence:
 
-- the accepted fresh-agent child session captured from the active runtime
-- the accepted final answer extracted from that child session
-- runtime-native child-session locator metadata
+- the authoritative runtime-native evidence captured from the active execution runtime
+- the accepted final answer extracted from that evidence or from the runtime's final output capture
+- runtime-native locator metadata
 
 Supported runtime patterns:
 
-- Codex mode:
-  - spawn with `spawn_agent`
+- Codex execution:
+  - execute with `spawn_agent`
   - locate evidence from `~/.codex/sessions/`
   - use `~/.codex/state_5.sqlite` only as a locator or tie-breaker when needed
-- OpenClaw mode:
-  - spawn with `sessions_spawn`
-  - retrieve evidence from `sessions_history`
-  - use returned child session keys or labels as the primary locator
+- Kiro execution:
+  - execute Kiro in the isolated case workspace
+  - configure Kiro hooks to append newline-delimited raw hook events to `case-artifacts/<case_id>/raw-hook-trace.jsonl`
+  - preserve the judge-facing raw hook events in `case-artifacts/<case_id>/accepted-session.json`
 
-The accepted child session JSON is the authoritative evidence source for the current framework.
-`transcript.md` is a derived human-readable view of that accepted session evidence.
-Do not mark a case `pass` from a generic assistant claim such as "I checked the skill" unless the accepted session evidence shows what was actually read or run.
+The authoritative evidence source is always the runtime-native raw evidence.
+`accepted-session.json` is the canonical per-case evidence artifact that the evaluator should cite in judgments.
+Its contents must preserve the runtime-native raw event stream for the accepted attempt, with at most a thin JSON wrapper needed to keep a stable ordered record set such as `items`.
+For Codex execution it should be produced by copying the accepted child session JSONL into `accepted-session.json` without semantic normalization.
+For Kiro execution it should be produced by copying the accepted raw hook trace into `accepted-session.json` without semantic normalization.
+`transcript.md` is a derived human-readable view of the accepted evidence.
+Do not mark a case `pass` from a generic assistant claim such as "I checked the skill" unless the authoritative runtime evidence shows what was actually read or run.
 
 Static reads by the evaluator are allowed for:
 
@@ -250,11 +264,11 @@ Static reads by the evaluator are allowed for:
 
 Static reads by the evaluator are not enough on their own to mark a dynamic case `pass` when a fresh-agent run was available.
 
-If the runtime evidence source is unavailable, if the accepted child session cannot be retrieved, or if the session evidence is too coarse to support the assertion, do not judge the case as `pass`.
+If the runtime evidence source is unavailable, if the authoritative evidence cannot be retrieved, or if the evidence is too coarse to support the assertion, do not judge the case as `pass`.
 Mark the case `blocked` with:
 
 - `environment` when the runtime evidence source is unavailable
-- `insufficient-evidence` when the session exists but cannot support a reliable judgment
+- `insufficient-evidence` when the captured runtime evidence exists but cannot support a reliable judgment
 
 Invalid attempts can explain `notes`, but they cannot satisfy assertions or justify a `pass`.
 
@@ -269,9 +283,9 @@ Rules:
 - Apply case `setup` mutations only inside that case workspace.
 - No case may observe filesystem mutations left by a previous case unless the current case setup explicitly recreates them.
 - Preserve the accepted case workspace at least until `case-results/<case_id>.json` and `report.md` are written. Cleanup after reporting is optional.
-- Judge isolation from observed session evidence, not from fresh-agent self-reporting.
-- For both Codex and OpenClaw spawned-subagent evidence, treat per-tool `workdir` values, resolved read/write paths, and command-derived cwd outputs as authoritative isolation signals.
-- Do not treat top-level session cwd metadata as authoritative isolation evidence by itself, because spawned child-session metadata may inherit the parent workspace cwd.
+- Judge isolation from observed runtime evidence, not from fresh-agent self-reporting.
+- For both Codex and Kiro execution evidence, treat per-tool `workdir` values, resolved read/write paths, hook-captured cwd values, and command-derived cwd outputs as authoritative isolation signals.
+- Do not treat top-level session cwd metadata as authoritative isolation evidence by itself, because Codex spawned child-session metadata may inherit the parent workspace cwd.
 - Treat any observed access outside the case workspace as invalid evidence for that attempt.
 - If no reliable per-tool workdir, resolved path, or command-derived cwd can be observed, that evidence cannot justify a `pass`.
 
@@ -284,7 +298,7 @@ Cases may include:
 
 - optional `assert.summary` as a short human-readable description of the protected behavior
 - optional per-assertion `description` to explain the intent of that single check
-- optional per-assertion `evidence_scope` to hint which accepted artifact file the evaluator should rely on, such as `accepted-session.json` or `final-answer.txt`
+- optional per-assertion `evidence_scope` to hint which accepted artifact file the evaluator should rely on, such as `accepted-session.json`, `raw-hook-trace.jsonl`, or `final-answer.txt`
 
 These human-readable fields are the assertion contract.
 Older requirements should be written in terms of consultation, observed commands, ordering, and final answers, not idealized runtime-native events.
@@ -300,9 +314,9 @@ Fields:
 - optional `fail_signals`
 - optional `evidence_scope`
 
-The evaluator must judge the check from the accepted session evidence and the accepted final answer.
+The evaluator must judge the check from the authoritative runtime evidence preserved in `accepted-session.json` and the accepted final answer as needed.
 Pass only when the available evidence satisfies the pass criteria and does not show any fail signal.
-If the accepted session evidence does not support a reliable answer, mark the assertion `blocked`.
+If the available evidence does not support a reliable answer, mark the assertion `blocked`.
 
 ## Case Result Shape
 
@@ -313,7 +327,8 @@ Each `case-results/<case_id>.json` file must contain:
   "case_id": "example-case",
   "workspace_root": "/tmp/skill-eval/run-123/example-case",
   "thread_id": "optional-thread-id-or-null",
-  "session_path": "openclaw-session://child-session-key or /Users/name/.codex/sessions/...jsonl",
+  "session_path": "/Users/name/.codex/sessions/...jsonl or null",
+  "evidence_path": "case-artifacts/example-case/raw-hook-trace.jsonl or /Users/name/.codex/sessions/...jsonl",
   "status": "pass",
   "blocked_reason": null,
   "assertions": [
@@ -330,7 +345,8 @@ Each `case-results/<case_id>.json` file must contain:
 }
 ```
 
-Prefer `accepted-session.json#msg-<n>` references in `evidence` when the accepted session artifact is normalized into message records.
+Prefer `accepted-session.json#msg-<n>` references in `evidence` when `accepted-session.json` stores the raw event stream as ordered `items`.
+Prefer `raw-hook-trace.jsonl#L<line>` references when a Kiro-only fact is supported directly by the raw trace.
 If the runtime only exposes stable line-oriented evidence, `accepted-session.json#L<line>` is also acceptable.
 Use `transcript.md#L<line>` only as a readability aid.
 
@@ -443,7 +459,7 @@ Each dimension must contain:
    a. Prepare the skill version or skill path in the case workspace.
    b. Execute each case using the standard case execution chain.
    c. Collect evidence and judge pass/fail assertions as usual.
-   d. Score each rubric dimension from the accepted session evidence.
+   d. Score each rubric dimension from the authoritative runtime evidence preserved in `accepted-session.json` plus the accepted final answer when needed.
 6. Write variant-specific artifacts under `runs/<run_id>/variants/<variant_label>/`.
 7. Write `eval-report.md`.
 
@@ -457,7 +473,8 @@ runs/<run_id>/
 │       ├── case-artifacts/
 │       │   └── <case_id>/
 │       │       ├── accepted-session.json
-│       │       └── final-answer.txt
+│       │       ├── final-answer.txt
+│       │       └── raw-hook-trace.jsonl  # required when execution_runtime=kiro
 │       ├── case-results/
 │       │   └── <case_id>.json
 │       └── transcript.md
@@ -509,7 +526,7 @@ For `subjective` mode, omit the `Head-to-Head` section.
 
 ### Scoring Rules
 
-- Score each dimension independently from the accepted session evidence.
+- Score each dimension independently from the authoritative runtime evidence preserved in `accepted-session.json` and the accepted final answer when needed.
 - Use the rubric anchors for calibration. A score of 3 means "meets the anchor description for 3."
 - If evidence is insufficient to score a dimension, record `null` and explain in `rubric_notes`.
 - Rubric scores are independent of pass/fail assertions. A case can `pass` all assertions but score low on `completeness`, or `fail` an assertion but score high on `accuracy`.

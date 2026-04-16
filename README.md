@@ -9,7 +9,8 @@ This repo defines:
 - the active suites and cases under `targets/<target_id>/`
 - the run artifacts written to `runs/<run_id>/`
 
-The repo contract is runtime-neutral: evaluators may execute it in Codex or OpenClaw as long as they honor the artifact contract and record the chosen runtime in `manifest.json.evidence_mode`.
+The repo contract keeps Codex as the evaluator runtime.
+Case execution may run in Codex or Kiro as long as the evaluator honors the artifact contract and records the chosen execution runtime in `manifest.json.execution_runtime`.
 
 ## Run Modes
 
@@ -43,8 +44,8 @@ agentic-evals/
 
 - `README.md`: human-facing repo guide for understanding and editing the test set.
 - `AGENT.md`: canonical evaluator-facing repo contract.
-- `docs/session-evidence.md`: canonical contract for dual-mode session evidence and child-session location.
-- `skill-eval/SKILL.md`: operational instructions for the `skill-eval` evaluator skill, not the source of truth for repo assertions or statuses.
+- `docs/session-evidence.md`: canonical contract for Codex-judged runtime evidence and child-session or hook-trace location.
+- `.agents/skills/skills-evaluation/SKILL.md`: operational instructions for the `skill-eval` evaluator skill, not the source of truth for repo assertions or statuses.
 
 ## How To Read This Repo
 
@@ -140,8 +141,9 @@ Keep cases focused and behavior-first:
 - Keep `input.user_prompt` realistic and `setup` minimal.
 - Write assertions as natural-language rubric entries.
 - Use `assert.summary` for the case-level behavior being protected.
-- Use `evidence_scope` to point the evaluator to artifact filenames such as `accepted-session.json`, `final-answer.txt`, or both.
-- Write trace-facing assertions against accepted session evidence semantics such as consultation of a file, an observed command invocation, ordering, and the final answer.
+- Use `evidence_scope` to point the evaluator to artifact filenames such as `accepted-session.json`, `raw-hook-trace.jsonl`, `final-answer.txt`, or any combination of them.
+- Prefer `accepted-session.json` when the case should read the canonical raw judge log artifact for the accepted attempt.
+- Write trace-facing assertions against authoritative runtime evidence semantics such as consultation of a file, an observed command invocation, ordering, and the final answer.
 - Make sure any setup can be reproduced inside an isolated case workspace.
 
 Each case should include:
@@ -210,7 +212,13 @@ TARGET_ID=voice-ai-integration ruby -e 'require "yaml"; target_id = ENV.fetch("T
 
 ## Key Paths
 
-- `skill-eval/SKILL.md`
+- `scripts/capture_kiro_hook.py`
+- `scripts/write_kiro_hook_agent.py`
+- `scripts/init_skill_eval_run.py`
+- `docs/kiro-runtime-agent-prompt.txt`
+- `scripts/finalize_codex_case_judgment.py`
+- `scripts/codex_case_judgment.schema.json`
+- `.agents/skills/skills-evaluation/SKILL.md`
 - `AGENT.md`
 - `docs/session-evidence.md`
 - `targets/<target_id>/target.yaml`

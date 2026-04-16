@@ -1,5 +1,9 @@
 # OpenClaw Runner Design for `skill-eval`
 
+Legacy note: this file is historical reference only.
+The current canonical flow keeps Codex as the evaluator and supports Codex or Kiro as the execution runtime.
+Follow `agentic-evals/AGENT.md`, `agentic-evals/docs/session-evidence.md`, and `.agents/skills/skills-evaluation/SKILL.md` before applying anything from this document.
+
 This file defines the intended evaluator execution pattern after the repo contract was migrated from Codex-local evidence to OpenClaw-native orchestration.
 
 ## Goals
@@ -29,7 +33,7 @@ Avoid relying on:
 ## Recommended Per-Case Flow
 
 1. Create attempt workspace
-   - Run `bash skills/skill-eval/scripts/create_case_workspace.sh <source_workspace> <case_workspace_root> <case_id> --target <target_id>`
+   - Run `bash .agents/skills/skills-evaluation/scripts/create_case_workspace.sh <source_workspace> <case_workspace_root> <case_id> --target <target_id>`
    - Capture the returned absolute attempt workspace path
 
 2. Apply case setup
@@ -94,6 +98,9 @@ Requirements:
 - Use the target skill docs if relevant.
 - Treat <workspace> as your only workspace for this task.
 - Start from <workspace> and keep all file reads, writes, and shell commands inside it.
+- Ignore inherited parent-session metadata such as a different top-level cwd; only paths under <workspace> are valid for this run.
+- For every tool call that accepts a workdir, set it explicitly to <workspace> or one of its descendants.
+- Do not read files from the parent repo via absolute paths; use the copied files under <workspace>.
 - If something you need is missing inside <workspace>, say so from that workspace instead of reaching outside it.
 - Do not mention that you are being evaluated.
 - Give the exact answer you would send to the user.

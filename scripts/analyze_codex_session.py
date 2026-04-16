@@ -38,6 +38,8 @@ def normalize_path(value: str, workdir: str | None) -> str | None:
     value = value.strip().strip("'\"")
     if not value or value.startswith("-") or value.startswith("http"):
         return None
+    if value in {"/dev/null", "/dev/stdout", "/dev/stderr"} or value.startswith("/dev/fd/"):
+        return None
     if value.startswith("`") and value.endswith("`"):
         value = value[1:-1]
     if value.startswith("./") or value.startswith("../") or not value.startswith("/"):

@@ -25,7 +25,16 @@ mkdir -p "$case_workspace_root"
 
 source_workspace=$(cd "$source_workspace" && pwd)
 case_workspace_root=$(cd "$case_workspace_root" && pwd)
-eval_repo_root="$source_workspace/agentic-evals"
+
+if [[ -f "$source_workspace/AGENT.md" ]]; then
+  eval_repo_root="$source_workspace"
+elif [[ -f "$source_workspace/agentic-evals/AGENT.md" ]]; then
+  eval_repo_root="$source_workspace/agentic-evals"
+else
+  echo "could not resolve eval repo under $source_workspace" >&2
+  exit 1
+fi
+
 safe_case_id=${case_id//\//-}
 case_dir="$case_workspace_root/$safe_case_id"
 mkdir -p "$case_dir"
@@ -56,7 +65,7 @@ fi
 target_yaml="$eval_repo_root/targets/$target_id/target.yaml"
 
 if [[ ! -f "$target_yaml" ]]; then
-  echo "target config does not exist: agentic-evals/targets/$target_id/target.yaml" >&2
+  echo "target config does not exist: $target_yaml" >&2
   exit 1
 fi
 

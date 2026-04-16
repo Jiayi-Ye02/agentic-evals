@@ -2,9 +2,13 @@
 
 This playbook is the concrete OpenClaw-native execution procedure for running `skill-eval`.
 
+Legacy note: this playbook is not the canonical path for the current repo contract.
+The current canonical flow keeps Codex as the evaluator and supports Codex or Kiro as the execution runtime.
+Prefer `agentic-evals/AGENT.md`, `agentic-evals/docs/session-evidence.md`, and `.agents/skills/skills-evaluation/SKILL.md`.
+
 Use it together with:
 
-- `skill-eval/SKILL.md`
+- `.agents/skills/skills-evaluation/SKILL.md`
 - `skill-eval/references/openclaw-runner-design.md`
 - `agentic-evals/AGENT.md`
 
@@ -39,7 +43,7 @@ Recommended `manifest.json` extra fields:
 Run:
 
 ```bash
-bash skills/skill-eval/scripts/create_case_workspace.sh "<source_workspace>" "<case_workspace_root>" "<case_id>" --target "<target_id>"
+bash .agents/skills/skills-evaluation/scripts/create_case_workspace.sh "<source_workspace>" "<case_workspace_root>" "<case_id>" --target "<target_id>"
 ```
 
 Save the returned path as the attempt `workspace_root`.
