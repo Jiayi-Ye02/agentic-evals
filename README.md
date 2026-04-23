@@ -9,7 +9,7 @@ This repo defines:
 - the active suites and cases under `targets/<target_id>/`
 - the run artifacts written to `runs/<run_id>/`
 
-The repo contract is runtime-neutral: evaluators may execute it in Codex or OpenClaw as long as they honor the artifact contract and record the chosen runtime in `manifest.json.evidence_mode`.
+The repo contract is runtime-neutral: evaluators may execute it in Codex, OpenClaw, or Kiro as long as they honor the artifact contract and record the chosen runtime in `manifest.json.evidence_mode`.
 
 ## Run Modes
 
@@ -43,7 +43,7 @@ agentic-evals/
 
 - `README.md`: human-facing repo guide for understanding and editing the test set.
 - `AGENT.md`: canonical evaluator-facing repo contract.
-- `docs/session-evidence.md`: canonical contract for dual-mode session evidence and child-session location.
+- `docs/session-evidence.md`: canonical contract for runtime-native evidence and accepted-session location.
 - `skill-eval/SKILL.md`: operational instructions for the `skill-eval` evaluator skill, not the source of truth for repo assertions or statuses.
 
 ## How To Read This Repo
@@ -140,7 +140,7 @@ Keep cases focused and behavior-first:
 - Keep `input.user_prompt` realistic and `setup` minimal.
 - Write assertions as natural-language rubric entries.
 - Use `assert.summary` for the case-level behavior being protected.
-- Use `evidence_scope` to point the evaluator to artifact filenames such as `accepted-session.json`, `final-answer.txt`, or both.
+- Use `evidence_scope` to point the evaluator to artifact filenames such as `accepted-session.json`, `raw-hook-trace.jsonl`, `final-answer.txt`, or any combination of them.
 - Write trace-facing assertions against accepted session evidence semantics such as consultation of a file, an observed command invocation, ordering, and the final answer.
 - Make sure any setup can be reproduced inside an isolated case workspace.
 
@@ -210,6 +210,13 @@ TARGET_ID=voice-ai-integration ruby -e 'require "yaml"; target_id = ENV.fetch("T
 
 ## Key Paths
 
+- `.github/workflows/skill-eval-kiro.yml`
+- `scripts/capture_kiro_hook.py`
+- `scripts/write_kiro_hook_agent.py`
+- `scripts/normalize_kiro_hook_trace.py`
+- `scripts/analyze_kiro_hook_trace.py`
+- `docs/kiro-runtime-agent-prompt.txt`
+- `docs/kiro-runtime-smoke-test.md`
 - `skill-eval/SKILL.md`
 - `AGENT.md`
 - `docs/session-evidence.md`
