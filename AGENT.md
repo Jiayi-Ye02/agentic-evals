@@ -89,7 +89,7 @@ agentic-evals/
 - `targets/<target_id>/cases/<suite_id>/suite.yaml` defines a runnable suite and lists its cases.
 - `targets/<target_id>/cases/<suite_id>/<case_id>.yaml` holds active cases, co-located with their suite.
 - `targets/<target_id>/deferred-cases/` holds backlog cases that are intentionally not active.
-- `docs/session-evidence.md` defines the dual-mode session evidence model for Codex and OpenClaw runtimes.
+- `docs/session-evidence.md` defines the runtime-native evidence model for Codex, OpenClaw, and Kiro runtimes.
 
 Deferred cases are not part of the runnable active suite set unless a human explicitly promotes them.
 
@@ -105,7 +105,8 @@ runs/<run_id>/
 ├── case-artifacts/
 │   ├── <case_id>/
 │   │   ├── accepted-session.json
-│   │   └── final-answer.txt
+│   │   ├── final-answer.txt
+│   │   └── raw-hook-trace.jsonl  # required when evidence_mode=kiro-hook-trace
 │   └── ...
 ├── transcript.md
 ├── case-results/
@@ -128,6 +129,7 @@ runs/<run_id>/
 - `evidence_mode` with one of:
   - `codex-local-session-store`
   - `openclaw-session-history`
+  - `kiro-hook-trace`
 - `notes` if the environment is unusual
 
 It is also acceptable to record extra fields such as `selected_case_ids`, `resolved_case_ids`, `source_workspace`, `run_state`, `variant_label`, or `variant_source_url`.
@@ -236,8 +238,12 @@ Supported runtime patterns:
   - spawn with `sessions_spawn`
   - retrieve evidence from `sessions_history`
   - use returned child session keys or labels as the primary locator
+- Kiro mode:
+  - execute Kiro directly inside the isolated case workspace
+  - configure hooks to append raw events to `case-artifacts/<case_id>/raw-hook-trace.jsonl`
+  - preserve the accepted raw hook stream in `case-artifacts/<case_id>/accepted-session.json`
 
-The accepted child session JSON is the authoritative evidence source for the current framework.
+The accepted runtime-native evidence artifact is the authoritative evidence source for the current framework.
 `transcript.md` is a derived human-readable view of that accepted session evidence.
 Do not mark a case `pass` from a generic assistant claim such as "I checked the skill" unless the accepted session evidence shows what was actually read or run.
 
@@ -270,7 +276,7 @@ Rules:
 - No case may observe filesystem mutations left by a previous case unless the current case setup explicitly recreates them.
 - Preserve the accepted case workspace at least until `case-results/<case_id>.json` and `report.md` are written. Cleanup after reporting is optional.
 - Judge isolation from observed session evidence, not from fresh-agent self-reporting.
-- For both Codex and OpenClaw spawned-subagent evidence, treat per-tool `workdir` values, resolved read/write paths, and command-derived cwd outputs as authoritative isolation signals.
+- For Codex, OpenClaw, and Kiro evidence, treat per-tool `workdir` values, resolved read/write paths, hook-captured cwd values, and command-derived cwd outputs as authoritative isolation signals.
 - Do not treat top-level session cwd metadata as authoritative isolation evidence by itself, because spawned child-session metadata may inherit the parent workspace cwd.
 - Treat any observed access outside the case workspace as invalid evidence for that attempt.
 - If no reliable per-tool workdir, resolved path, or command-derived cwd can be observed, that evidence cannot justify a `pass`.
@@ -284,7 +290,7 @@ Cases may include:
 
 - optional `assert.summary` as a short human-readable description of the protected behavior
 - optional per-assertion `description` to explain the intent of that single check
-- optional per-assertion `evidence_scope` to hint which accepted artifact file the evaluator should rely on, such as `accepted-session.json` or `final-answer.txt`
+- optional per-assertion `evidence_scope` to hint which accepted artifact file the evaluator should rely on, such as `accepted-session.json`, `raw-hook-trace.jsonl`, or `final-answer.txt`
 
 These human-readable fields are the assertion contract.
 Older requirements should be written in terms of consultation, observed commands, ordering, and final answers, not idealized runtime-native events.
@@ -332,6 +338,7 @@ Each `case-results/<case_id>.json` file must contain:
 
 Prefer `accepted-session.json#msg-<n>` references in `evidence` when the accepted session artifact is normalized into message records.
 If the runtime only exposes stable line-oriented evidence, `accepted-session.json#L<line>` is also acceptable.
+Prefer `raw-hook-trace.jsonl#L<line>` when a Kiro-only fact is supported directly by the raw hook trace.
 Use `transcript.md#L<line>` only as a readability aid.
 
 ## Comparison Shape
