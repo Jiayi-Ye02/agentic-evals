@@ -11,4 +11,3 @@ __pycache__/
 .kiro-runtime/
 .skill-eval-source/
 agent-quickstart-nextjs/
-.agents/skills/agora/
