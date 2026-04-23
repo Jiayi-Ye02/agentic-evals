@@ -1,4 +1,4 @@
-name: Skill Evaluation
+name: Skill Evaluation (Kiro)
 
 on:
   workflow_dispatch:
@@ -16,7 +16,7 @@ on:
         required: false
         default: "convoai-e2e-first-success"
       model:
-        description: "Model for Codex"
+        description: "Model for Codex evaluator"
         required: false
         default: ""
       run_mode:
@@ -43,12 +43,6 @@ on:
         description: "Git ref (branch/tag/sha) of the skill repo to test"
         required: false
         default: ""
-
-  pull_request:
-    paths:
-      - "targets/**/*.yaml"
-      - ".agents/skills/**"
-      - ".github/workflows/**"
 
 env:
   TARGET_ID: ${{ github.event.inputs.target_id || 'agora' }}
@@ -96,6 +90,23 @@ jobs:
           pip install pyyaml
           npm install -g agent-browser
 
+      - name: Validate Kiro headless prerequisites
+        env:
+          KIRO_API_KEY: ${{ secrets.KIRO_API_KEY }}
+        run: |
+          [ -n "$KIRO_API_KEY" ] || {
+            echo "::error::skill-eval-kiro requires the KIRO_API_KEY secret"
+            exit 1
+          }
+
+      - name: Install Kiro CLI
+        run: |
+          curl -fsSL https://cli.kiro.dev/install | bash
+          export PATH="$HOME/.local/bin:$PATH"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          command -v kiro-cli
+          kiro-cli --version
+
       - name: Sync external skill repo
         env:
           SKILL_REPO: ${{ github.event.inputs.skill_repo || 'AgoraIO/skills' }}
@@ -137,9 +148,7 @@ jobs:
           RUN_MODE: ${{ github.event.inputs.run_mode || 'single-run' }}
           VARIANT_A_URL: ${{ github.event.inputs.variant_a_url || '' }}
           VARIANT_B_URL: ${{ github.event.inputs.variant_b_url || '' }}
-          IS_PR: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
         run: |
-          # For PR triggers, default to e2e case only
           EFFECTIVE_CASE_ID="${CASE_ID}"
           EFFECTIVE_SUITE_IDS="${SUITE_IDS}"
 
@@ -153,11 +162,16 @@ jobs:
           4. Follow the SKILL.md workflow exactly.
 
           Key rules:
-          - Use spawn_agent with fork_context: false for each case.
-          - Do NOT use codex exec as a substitute for per-case execution.
+          - Keep Codex as the evaluator and judge.
+          - Execute each case with Kiro, not spawn_agent.
           - Create isolated workspaces via the helper script:
             bash .agents/skills/skills-evaluation/scripts/create_case_workspace.sh
-          - Collect evidence from ~/.codex/sessions/ after each sub-agent completes.
+          - For each case, write the local Kiro hook agent via:
+            python3 scripts/write_kiro_hook_agent.py "<workspace>" --target-id "<target_id>"
+          - Set KIRO_HOOK_TRACE_PATH per case and capture raw hook events to raw-hook-trace.jsonl.
+          - Run kiro-cli chat --no-interactive --agent skill-eval-kiro-runtime --trust-all-tools.
+          - Capture stdout to final-answer.txt and derive accepted-session.json with normalize_kiro_hook_trace.py.
+          - If hook capture is missing or unreliable, mark the case blocked instead of judging from summaries.
           - Write all artifacts under runs/<run_id>/.
 
           Timing requirements:
@@ -194,10 +208,8 @@ jobs:
           HEREDOC
 
           echo "" >> /tmp/eval-prompt.txt
-
-          # Point evaluator to credentials file (not in prompt to avoid leaking in logs)
           echo "Agora credentials file: /tmp/agora-credentials.env" >> /tmp/eval-prompt.txt
-          echo "Before spawning each sub-agent, source this file so AGORA_APP_ID and AGORA_APP_CERTIFICATE are exported in the shell environment." >> /tmp/eval-prompt.txt
+          echo "Before launching each Kiro case run, source this file so AGORA_APP_ID and AGORA_APP_CERTIFICATE are exported in the shell environment." >> /tmp/eval-prompt.txt
           echo "Do NOT echo or log the credential values." >> /tmp/eval-prompt.txt
           echo "" >> /tmp/eval-prompt.txt
 
@@ -205,6 +217,7 @@ jobs:
           echo "- test repo path: $(pwd)" >> /tmp/eval-prompt.txt
           echo "- target_id: ${TARGET_ID}" >> /tmp/eval-prompt.txt
           echo "- run_mode: ${RUN_MODE}" >> /tmp/eval-prompt.txt
+          echo "- execution_runtime: kiro" >> /tmp/eval-prompt.txt
 
           if [ "$EFFECTIVE_SUITE_IDS" != "all" ]; then
             echo "- suite_ids: ${EFFECTIVE_SUITE_IDS}" >> /tmp/eval-prompt.txt
@@ -230,6 +243,7 @@ jobs:
         env:
           AGORA_APP_ID: ${{ secrets.AGORA_APP_ID }}
           AGORA_APP_CERTIFICATE: ${{ secrets.AGORA_APP_CERTIFICATE }}
+          KIRO_API_KEY: ${{ secrets.KIRO_API_KEY }}
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           responses-api-endpoint: ${{ secrets.RESPONSES_API_ENDPOINT }}
@@ -266,28 +280,6 @@ jobs:
           echo "## Skill Eval Report" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           cat "${{ steps.artifacts.outputs.run_dir }}/report.md" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Post report as PR comment
-        if: >
-          github.event_name == 'pull_request' &&
-          steps.artifacts.outputs.report_exists == 'true'
-        uses: actions/github-script@v7
-        env:
-          REPORT_PATH: ${{ steps.artifacts.outputs.run_dir }}/report.md
-          ARTIFACT_NAME: eval-run-${{ env.TARGET_ID }}-${{ github.run_id }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        with:
-          github-token: ${{ github.token }}
-          script: |
-            const fs = require('fs');
-            const report = fs.readFileSync(process.env.REPORT_PATH, 'utf8');
-            const artifactLink = `[📦 Download artifacts (screenshots included)](${process.env.RUN_URL})`;
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              body: `## Skill Eval Report\n\n${report}\n\n---\n${artifactLink}`,
-            });
 
       - name: Report results
         if: steps.artifacts.outputs.run_found == 'true'
