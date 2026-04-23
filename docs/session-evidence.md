@@ -6,7 +6,6 @@ The evaluator supports two runtimes:
 
 - Codex local session store
 - OpenClaw session history
-- Kiro raw hook trace
 
 The evaluator should pick the runtime that is actually available in the current environment and record it in `manifest.json.evidence_mode`.
 
@@ -27,10 +26,6 @@ Per runtime:
 - OpenClaw:
   - accepted child session returned by `sessions_history`
   - `sessions_spawn` success metadata such as the returned child session key or label
-- Kiro:
-  - accepted raw hook trace at `case-artifacts/<case_id>/raw-hook-trace.jsonl`
-  - accepted-session artifact derived directly from that raw hook trace
-  - launcher metadata such as the configured trace path and case workspace
 
 Do not treat the fresh agent's self-reported `TRACE_FILES_READ` or `TRACE_COMMANDS_EXECUTED` as authoritative evidence.
 They may appear in older child sessions, but they are only low-confidence supporting notes.
@@ -53,12 +48,8 @@ Per runtime:
 - OpenClaw:
   - the `childSessionKey` returned by `sessions_spawn`
   - returned label or metadata when available
-- Kiro:
-  - the evaluator-selected `case-artifacts/<case_id>/raw-hook-trace.jsonl` path
-  - case run start time relative to the attempt workspace
-  - hook payload cwd metadata when available
 
-If the evaluator cannot reliably identify a single accepted evidence source for the case attempt, mark the case `blocked`.
+If the evaluator cannot reliably identify a single child session for the case attempt, mark the case `blocked`.
 
 ## What To Extract From Session Evidence
 
@@ -79,7 +70,6 @@ Runtime notes:
 
 - Codex evidence may originate as JSONL and should be normalized into `accepted-session.json` when practical.
 - OpenClaw evidence may come directly from `sessions_history(..., includeTools=true)`.
-- Kiro evidence may come directly from `raw-hook-trace.jsonl` and should be copied into `accepted-session.json` without semantic normalization.
 
 ## Extraction Rules
 
@@ -92,7 +82,6 @@ Runtime notes:
 - When a command clearly reads a file, emit `file_read_observed`.
 - When a command or patch clearly writes a file, emit `file_write_observed`.
 - Convert the accepted child-session final assistant output into `final_answer`.
-- For Kiro hook traces, map hook events such as `preToolUse` and `postToolUse` into the same common judgment model when practical.
 
 For shell-derived file observations, prefer stable patterns such as:
 
@@ -108,7 +97,7 @@ If a path cannot be reconstructed reliably, do not invent one.
 
 Judge isolation only from observed evidence.
 
-- Prefer per-tool `workdir` values, hook-captured `cwd` values, and command-derived paths as the authoritative isolation signals
+- Prefer per-tool `workdir` values and command-derived paths as the authoritative isolation signals
 - Treat `session_meta.cwd` as advisory only for spawned-subagent runs, because it may remain equal to the parent thread cwd even when the child agent's tool calls stay inside the case workspace
 - observed per-tool `workdir` values must stay inside the accepted case workspace
 - observed read and write paths must stay inside the accepted case workspace
@@ -123,7 +112,6 @@ The evaluator should preserve:
 
 ```text
 case-artifacts/<case_id>/
-├── raw-hook-trace.jsonl  # required when evidence_mode=kiro-hook-trace
 ├── accepted-session.json
 └── final-answer.txt
 ```
@@ -132,8 +120,7 @@ case-artifacts/<case_id>/
 It may be:
 
 - a normalized JSON rendering of Codex session JSONL, or
-- a copied or normalized OpenClaw `sessions_history` result, or
-- a copied or normalized Kiro raw hook trace
+- a copied or normalized OpenClaw `sessions_history` result
 
 ## Transcript Rendering
 
