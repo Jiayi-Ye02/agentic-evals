@@ -44,6 +44,12 @@ on:
         required: false
         default: ""
 
+  pull_request:
+    paths:
+      - "targets/**/*.yaml"
+      - ".agents/skills/**"
+      - ".github/workflows/**"
+
 env:
   TARGET_ID: ${{ github.event.inputs.target_id || 'agora' }}
 
