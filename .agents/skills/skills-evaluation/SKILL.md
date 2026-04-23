@@ -23,7 +23,7 @@ Do not replace execution with a static read-through when a fresh-agent run is po
 Use the docs in this order and keep their roles separate:
 
 - `agentic-evals/AGENT.md`: canonical repo contract for any evaluator agent. Read this first for run outputs, statuses, assertion semantics, isolation rules, evaluation modes, and report shape.
-- `agentic-evals/docs/session-evidence.md`: required local evidence contract for locating child sessions and extracting evidence from `sessions/*.jsonl`.
+- `agentic-evals/docs/session-evidence.md`: required local evidence contract for locating runtime-native evidence and preserving it in `accepted-session.json`.
 - `agentic-evals/targets/<target_id>/target.yaml`: target-specific contract, including entry skill, roots, default suites, and allowed statuses.
 - `agentic-evals/targets/<target_id>/cases/<suite_id>/suite.yaml`: selected runnable suite definitions.
 - `agentic-evals/targets/<target_id>/cases/<suite_id>/<case_id>.yaml`: per-case prompts, setup, and assertions.
@@ -40,6 +40,7 @@ Do not duplicate repo contract rules from `AGENT.md` unless this skill needs an 
 - selected suite names, case ids, or permission to use the defaults
 - path or revision of the target skill if the user provided one
 - optional run mode: `single-run` or `ab-urls`
+- optional `execution_runtime`: `codex`, `openclaw`, or `kiro`
 - for `ab-urls`: `variant_a_url` and `variant_b_url`, both GitHub HTTP URLs to the target skill version
 
 If the user does not provide a test repo path, the evaluator must first look for a local
@@ -58,8 +59,8 @@ For `ab-urls`, recommended variant URL formats are:
 
 ## Runtime Support
 
-`skill-eval` supports Codex CLI runtimes that can create real child sessions and persist
-local session evidence.
+`skill-eval` keeps Codex as the evaluator runtime.
+It supports multiple execution subjects, including Kiro with raw hook tracing.
 
 Codex CLI support has been validated locally with `codex-cli 0.118.0` where:
 
@@ -76,6 +77,14 @@ Operational constraints for Codex CLI runs:
 - `~/.codex` must be writable so the session store and state database can update normally
 - authentication and network access must allow a normal live Codex session to complete
 
+Operational constraints for Kiro execution:
+
+- Codex remains the evaluator and judge
+- the evaluator must launch Kiro inside the isolated case workspace
+- Kiro hooks must append raw JSON lines to `case-artifacts/<case_id>/raw-hook-trace.jsonl`
+- `accepted-session.json` must preserve the accepted raw evidence stream for the Kiro attempt
+- if the evaluator cannot retrieve a reliable raw hook trace, stop or mark the case `blocked` instead of judging from a summary
+
 ## Non-Negotiables
 
 - Before any test evaluation, check whether a local `agentic-evals` folder already exists.
@@ -85,16 +94,19 @@ Operational constraints for Codex CLI runs:
 - Read `agentic-evals/targets/<target_id>/target.yaml` before selecting cases.
 - Read the selected suite files and case files before executing cases.
 - Create one brand-new isolated workspace for every case attempt under a temp parent directory. Never execute a case in the user's main workspace.
-- Execute each case by running a fresh Codex sub-agent on the case prompt with `spawn_agent` and `fork_context: false`.
-- Do not use `codex exec`, terminal wrappers, or any other fallback executor for case execution.
-- If `spawn_agent` is unavailable or agent creation fails, stop the evaluation immediately and report the failure reason instead of continuing.
-- If the runtime cannot write normal Codex session artifacts under `~/.codex`, stop and report an environment block instead of continuing with degraded evidence.
-- After each successful `spawn_agent`, immediately report the sub-agent nickname in the main thread so the user can find and open it in the Codex app. If no nickname is available, report the agent id.
+- Keep Codex as the evaluator even when the execution runtime is Kiro.
+- When `execution_runtime=codex`, execute each case by running a fresh Codex sub-agent on the case prompt with `spawn_agent` and `fork_context: false`.
+- When `execution_runtime=kiro`, run Kiro directly from the current Codex evaluator inside the isolated case workspace. Extract the case `input.user_prompt` verbatim, configure local raw-hook capture, launch `kiro-cli chat`, capture stdout to `final-answer.txt`, and copy the accepted raw hook stream into `accepted-session.json`.
+- Do not use `codex exec`, terminal wrappers, or any other fallback executor as a substitute for the selected case execution runtime.
+- If `execution_runtime=codex` and `spawn_agent` is unavailable or agent creation fails, stop the evaluation immediately and report the failure reason instead of continuing.
+- If `execution_runtime=codex` and the runtime cannot write normal Codex session artifacts under `~/.codex`, stop and report an environment block instead of continuing with degraded evidence.
+- If `execution_runtime=kiro` and the evaluator cannot capture `raw-hook-trace.jsonl`, stop or mark the case `blocked` instead of continuing with degraded evidence.
+- After each successful Codex `spawn_agent`, immediately report the sub-agent nickname in the main thread so the user can find and open it in the Codex app. If no nickname is available, report the agent id.
 - Send the case `input.user_prompt` to the fresh agent verbatim. Do not paraphrase the user request.
 - Do not leak the case title, assertions, expected route, intended answer, or your prior judgment into the fresh-agent prompt.
 - The fresh sub-agent is the execution subject, not the judge. Do not ask it to grade the case, interpret the assertions, or decide pass or fail.
 - Do not ask the fresh sub-agent to self-report `TRACE_FILES_READ`, `TRACE_COMMANDS_EXECUTED`, or any other evaluator-facing execution log.
-- Judge from accepted child session evidence, not from fresh-agent self-reporting.
+- Judge from authoritative runtime evidence, not from fresh-agent self-reporting.
 - Do not invent pass or fail rules outside the repo.
 - Do not mark `pass` from a generic self-report alone.
 - Do not mark `pass` from a static source review alone when a fresh-agent run was available.
@@ -228,23 +240,28 @@ For every case:
 
 1. Create a fresh isolated workspace for that case attempt under `case_workspace_root`.
 2. Apply the case setup as far as the environment allows, but only inside that attempt workspace.
-3. Start a fresh sub-agent with `spawn_agent` and `fork_context: false`.
-4. Give the fresh agent only the task-local context it needs:
+3. Execute the case in the selected runtime.
+   - for `execution_runtime=codex`, start a fresh sub-agent with `spawn_agent` and `fork_context: false`
+   - for `execution_runtime=kiro`, launch Kiro directly inside the attempt workspace from the current Codex evaluator:
+     1. write the local Kiro agent config with `python3 scripts/write_kiro_hook_agent.py "<workspace_root>" --target-id "<target_id>"`
+     2. set `KIRO_HOOK_TRACE_PATH` to `case-artifacts/<case_id>/raw-hook-trace.jsonl`
+     3. run `kiro-cli chat --no-interactive --agent skill-eval-kiro-runtime --trust-all-tools "<case input.user_prompt>"`
+     4. capture stdout to `case-artifacts/<case_id>/final-answer.txt`
+     5. write `accepted-session.json` with `python3 scripts/normalize_kiro_hook_trace.py`
+4. Give the execution subject only the task-local context it needs:
    - workspace root
    - the case `input.user_prompt`
    - a requirement to answer naturally as if serving the user
-5. Capture the returned agent metadata when available, such as the agent id or nickname.
-6. Do not tell the fresh agent which files it is expected to read.
-7. Do not tell the fresh agent what the correct answer should be.
-8. Wait for the fresh agent to finish.
-9. Locate the accepted child session JSONL from the local Codex session store.
+5. Capture runtime metadata when available, such as the agent id, nickname, trace path, or exit status.
+6. Do not tell the execution subject which files it is expected to read.
+7. Do not tell the execution subject what the correct answer should be.
+8. Wait for the execution subject to finish.
+9. Locate the accepted evidence source.
    Preferred signals:
-   - child `session_meta.payload.source.subagent.thread_spawn.parent_thread_id`
-   - child start time relative to the case attempt
-   - returned nickname or agent id when available
-   - `~/.codex/state_5.sqlite` `thread_spawn_edges` as a locator or tie-breaker
-10. If a single accepted child session cannot be identified, mark the case `blocked`.
-11. Copy the accepted child session to `case-artifacts/<case_id>/accepted-session.jsonl`.
+   - for Codex: child `session_meta.payload.source.subagent.thread_spawn.parent_thread_id`, child start time, nickname or agent id, and `~/.codex/state_5.sqlite`
+   - for Kiro: `case-artifacts/<case_id>/raw-hook-trace.jsonl`, the configured trace path, and the case workspace path
+10. If a single accepted evidence source cannot be identified, mark the case `blocked`.
+11. Copy or normalize the accepted evidence to `case-artifacts/<case_id>/accepted-session.json`.
 12. Extract the accepted final answer and save it to `case-artifacts/<case_id>/final-answer.txt`.
 13. Validate observed isolation before judging:
    - treat per-tool `workdir` values, resolved read and write paths, and command-derived cwd outputs such as `pwd` as the authoritative isolation signals
@@ -252,11 +269,11 @@ For every case:
    - observed per-tool `workdir` values must be inside the attempt workspace
    - observed read and write paths must be inside the attempt workspace
    - if a command such as `pwd` prints a cwd, that observed cwd must be inside the attempt workspace
-   - if the accepted session evidence shows an observed tool workdir, resolved path, or command-derived cwd outside the attempt workspace, invalidate that attempt, append the mismatch to `transcript.md`, create a brand-new attempt workspace, and rerun the case once
+   - if the accepted evidence shows an observed tool workdir, hook `cwd`, resolved path, or command-derived cwd outside the attempt workspace, invalidate that attempt, append the mismatch to `transcript.md`, create a brand-new attempt workspace, and rerun the case once
    - if no reliable tool workdir, resolved path, or command-derived cwd can be observed, mark the case `blocked`
    - if the accepted session cannot support reliable isolation after the retry, mark the case `blocked`
-14. Render `transcript.md` directly from the accepted child session evidence in event order.
-15. Judge each assertion in the main evaluator from the accepted session evidence and accepted final answer, using the rules in `AGENT.md`.
+14. Render `transcript.md` directly from the accepted evidence in event order.
+15. Judge each assertion in the main evaluator from the accepted evidence and accepted final answer, using the rules in `AGENT.md`.
 16. Write `case-results/<case_id>.json` and `report.md` exactly in the shapes required by `AGENT.md`.
 
 In `ab-urls` mode:
